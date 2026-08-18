@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Señales Forex ICT/SMC gratis: TP, stop loss y niveles diarios | Liquidez Diaria</title>
+<meta name="description" content="Análisis y señales diarias gratuitas de EUR/USD, GBP/USD, USD/JPY y oro: máximos y mínimos de la sesión anterior, Order Blocks, Fibonacci, niveles de entrada, take profit y stop loss con metodología ICT/SMC. Sin registro.">
+<link rel="canonical" href="https://liquidezdiaria.com/">
+<meta name="robots" content="index, follow">
+
+<meta property="og:type" content="website">
+<meta property="og:locale" content="es_ES">
+<meta property="og:title" content="Liquidez Diaria — Señales y análisis Forex ICT/SMC de la sesión anterior">
+<meta property="og:description" content="Máximos y mínimos de Asia, Londres y Nueva York, barridos de liquidez, Order Blocks, Fibonacci y niveles de entrada/TP/SL, actualizado y gratis.">
+<meta property="og:image" content="assets/img/og-image.webp">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#175cff">
+<link rel="apple-touch-icon" href="assets/img/favicon.svg">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://s3.tradingview.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css?v=20260818">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Liquidez Diaria",
+  "description": "Herramienta gratuita de análisis y señales diarias para Forex y oro: niveles de entrada, stop loss y take profit calculados con Order Blocks, Fibonacci y liquidez sobre las sesiones del día anterior, con metodología ICT y Smart Money Concepts.",
+  "applicationCategory": "FinanceApplication",
+  "operatingSystem": "Any",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "¿Esto es una recomendación de compra o venta?", "acceptedAnswer": { "@type": "Answer", "text": "Los niveles de entrada, stop loss y take profit se calculan aplicando reglas técnicas (estructura de mercado, Order Blocks, Fibonacci y liquidez) sobre datos históricos, de forma automática. No son una recomendación personalizada ni una garantía de resultado." } },
+    { "@type": "Question", "name": "¿Cómo se calculan el stop loss y los take profit?", "acceptedAnswer": { "@type": "Answer", "text": "El stop loss se coloca más allá del Order Block o el origen del movimiento. Los take profit usan la siguiente liquidez no capturada (por ejemplo el PDH/PDL) y extensiones de Fibonacci." } },
+    { "@type": "Question", "name": "¿Qué son los conceptos ICT y Smart Money Concepts (SMC)?", "acceptedAnswer": { "@type": "Answer", "text": "Un conjunto de ideas sobre liquidez, barridos de liquidez, estructura de mercado y zonas horarias clave usadas para leer el comportamiento del precio." } },
+    { "@type": "Question", "name": "¿Por qué son importantes los máximos y mínimos del día anterior?", "acceptedAnswer": { "@type": "Answer", "text": "Suelen actuar como imanes de liquidez: zonas donde el precio busca operativa antes de continuar o revertir su movimiento." } },
+    { "@type": "Question", "name": "¿Necesito registrarme para usarla?", "acceptedAnswer": { "@type": "Answer", "text": "No, la herramienta funciona directamente al entrar, sin cuentas ni instalaciones." } }
+  ]
+}
+</script>
+</head>
+<body>
+<a class="skip-link" href="#herramienta">Ir a la herramienta</a>
+
+<header class="site-header">
+  <div class="container site-header__inner">
+    <a class="logo" href="/">
+      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="18" width="6" height="12" rx="1" fill="currentColor"/><rect x="13" y="10" width="6" height="20" rx="1" fill="currentColor"/><rect x="24" y="4" width="6" height="26" rx="1" fill="currentColor"/></svg>
+      <span>Liquidez <strong>Diaria</strong></span>
+    </a>
+    <nav class="site-nav">
+      <a href="#como-funciona">Cómo funciona</a>
+      <a href="#noticias">Noticias</a>
+      <a href="#conceptos">Conceptos</a>
+      <a href="#faq">Preguntas</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero container">
+    <h1>Análisis diario de Forex con conceptos ICT y Smart Money Concepts</h1>
+    <p class="hero__subtitle">Máximos y mínimos de las sesiones de Asia, Londres y Nueva York del día anterior, barridos de liquidez y contexto de mercado — actualizado, gratis y sin registro.</p>
+  </section>
+
+  <section id="herramienta" class="tool-section container">
+    <noscript>
+      <p class="noscript-aviso">Esta herramienta necesita JavaScript para calcular los niveles y la señal en tiempo real. Actívalo en tu navegador para usarla; mientras tanto puedes leer las secciones de más abajo sobre la metodología ICT/SMC.</p>
+    </noscript>
+    <div class="tool-card" data-tool-card data-state="cargando">
+
+      <div class="tool-card__top">
+        <div class="chip-group" data-instrument-switch role="tablist" aria-label="Elegir instrumento"></div>
+        <span class="actualizado" data-actualizado>Cargando datos…</span>
+      </div>
+
+      <p class="fuente-aviso" data-fuente-aviso hidden></p>
+
+      <div class="error-aviso" data-error-aviso hidden>
+        <p>⚠️ No se ha podido cargar el análisis ahora mismo. Puede ser un corte puntual de conexión.</p>
+        <button type="button" class="btn btn--ghost" data-reintentar>Reintentar</button>
+      </div>
+
+      <div class="niveles-grid">
+        <div class="nivel-destacado nivel-destacado--pdh">
+          <span class="nivel-destacado__label">Máximo día anterior (PDH)</span>
+          <span class="nivel-destacado__valor" data-pdh>—</span>
+        </div>
+        <div class="nivel-destacado nivel-destacado--precio">
+          <span class="nivel-destacado__label">Precio actual (aprox.)</span>
+          <span class="nivel-destacado__valor" data-precio-actual>—</span>
+        </div>
+        <div class="nivel-destacado nivel-destacado--pdl">
+          <span class="nivel-destacado__label">Mínimo día anterior (PDL)</span>
+          <span class="nivel-destacado__valor" data-pdl>—</span>
+        </div>
+      </div>
+
+      <div class="chips-estado" data-badges></div>
+
+      <h2 class="sesiones-titulo">Sesiones del <span data-fecha-ayer>día anterior</span> (hora UTC)</h2>
+      <div class="sesiones-grid" data-sesiones>
+        <div class="sesion-card sesion-card--vacia">Cargando sesiones…</div>
+        <div class="sesion-card sesion-card--vacia">Cargando sesiones…</div>
+        <div class="sesion-card sesion-card--vacia">Cargando sesiones…</div>
+      </div>
+
+      <div class="relato-card" aria-live="polite">
+        <h2>Lectura ICT/SMC del día</h2>
+        <p data-relato>Calculando el contexto de mercado…</p>
+      </div>
+
+      <div class="senal-panel" data-senal-panel data-sesgo="neutral" aria-live="polite">
+        <div class="senal-panel__top">
+          <h2>Señal técnica automática</h2>
+          <span class="senal-badge" data-senal-badge>Calculando…</span>
+        </div>
+
+        <p class="senal-disclaimer">⚠️ <strong>Niveles calculados por reglas, no una recomendación personal.</strong> Se generan automáticamente a partir de la estructura de mercado, el último Order Block y Fibonacci sobre datos históricos recientes. Pueden fallar como cualquier método técnico: verifícalos siempre con tu propio análisis, usa un stop loss y no arriesgues más de lo que puedes permitirte perder.</p>
+
+        <p class="senal-vacio" data-senal-neutral hidden>No hay señal.</p>
+
+        <div class="senal-niveles" data-senal-niveles hidden>
+          <div class="senal-niveles__grid">
+            <div class="senal-nivel"><span class="senal-nivel__label">Zona de entrada</span><span class="senal-nivel__valor" data-senal-entrada>—</span></div>
+            <div class="senal-nivel senal-nivel--sl"><span class="senal-nivel__label">Stop loss</span><span class="senal-nivel__valor" data-senal-sl>—</span></div>
+            <div class="senal-nivel senal-nivel--tp"><span class="senal-nivel__label">Take profit 1</span><span class="senal-nivel__valor" data-senal-tp1>—</span></div>
+            <div class="senal-nivel senal-nivel--tp"><span class="senal-nivel__label">Take profit 2</span><span class="senal-nivel__valor" data-senal-tp2>—</span></div>
+            <div class="senal-nivel"><span class="senal-nivel__label">Ratio riesgo:beneficio</span><span class="senal-nivel__valor" data-senal-rr>—</span></div>
+            <div class="senal-nivel"><span class="senal-nivel__label">Bloque de órdenes usado</span><span class="senal-nivel__valor" data-senal-ob>—</span></div>
+          </div>
+          <p class="senal-explicacion" data-senal-explicacion>—</p>
+        </div>
+      </div>
+
+      <div class="zonas-panel">
+        <h2>Zonas de liquidez (Order Blocks recientes)</h2>
+        <p class="zonas-intro">Los últimos bloques de órdenes detectados en la estructura reciente: zonas donde el precio podría reaccionar si vuelve a visitarlas. "Sin testear" es la más fresca; "mitigada" significa que el precio ya la atravesó del todo y pierde relevancia.</p>
+        <p class="zonas-vacio" data-zonas-vacio hidden>Todavía no se han detectado zonas de liquidez claras con los datos disponibles.</p>
+        <div class="zonas-liquidez-grid" data-zonas-liquidez></div>
+      </div>
+
+      <div class="tv-chart-wrap">
+        <div class="tv-chart" data-tv-chart></div>
+      </div>
+
+      <p class="disclaimer-inline">⚠️ Contenido educativo, no es asesoramiento financiero. Los mercados apalancados conllevan riesgo de pérdida de capital. <a href="aviso-legal.html">Ver aviso legal completo</a>.</p>
+
+      <p class="privacidad-badge">🔒 No necesitas crear cuenta: los datos se consultan en el momento y no se guarda ninguna información personal.</p>
+    </div>
+  </section>
+
+  <div class="ad-slot ad-slot--leaderboard container">
+    <span>ANUNCIO</span>
+    <!-- PEGA AQUÍ TU CÓDIGO DE ADSENSE -->
+  </div>
+
+  <section id="como-funciona" class="seccion container">
+    <h2>Cómo funciona en 3 pasos</h2>
+    <div class="pasos-grid" data-pasos>
+      <div class="paso"><h3>1. Elige el instrumento</h3><p>Selecciona EUR/USD, GBP/USD, USD/JPY u oro. La herramienta carga las velas más recientes automáticamente.</p></div>
+      <div class="paso"><h3>2. Revisa los niveles de la sesión anterior</h3><p>Verás el máximo y mínimo de Asia, Londres y Nueva York del día previo, junto al PDH y PDL.</p></div>
+      <div class="paso"><h3>3. Lee el contexto ICT/SMC del día</h3><p>La herramienta indica si ya se barrió algún extremo y qué zona de liquidez suele buscarse a continuación.</p></div>
+    </div>
+  </section>
+
+  <section class="seccion seccion--texto container">
+    <h2>Qué son los máximos y mínimos de la sesión anterior en ICT/SMC</h2>
+    <p>La metodología ICT (Inner Circle Trader) y su evolución más divulgada, Smart Money Concepts (SMC), parten de una idea central: el precio se mueve buscando <strong>liquidez</strong>, es decir, las órdenes stop acumuladas por encima de máximos recientes y por debajo de mínimos recientes. El máximo del día anterior (PDH) y el mínimo del día anterior (PDL) son dos de las referencias de liquidez más vigiladas por los operadores institucionales, junto con los máximos y mínimos de cada sesión: la asiática, la de Londres y la de Nueva York.</p>
+    <p>Cuando el precio supera uno de esos niveles y después revierte con fuerza, muchos traders que siguen esta metodología lo interpretan como un <strong>barrido de liquidez</strong> (a veces llamado "movimiento trampa" o <em>judas swing</em> cuando ocurre justo al inicio de una zona horaria clave): el mercado "caza" los stops acumulados en ese nivel antes de moverse en la dirección contraria, buscando la liquidez del extremo opuesto del rango (el llamado <em>objetivo de liquidez</em>).</p>
+    <p>Las <strong>zonas horarias clave</strong> son las franjas horarias —típicamente la apertura de Londres y la apertura de Nueva York— donde este tipo de movimientos tiende a producirse con más fuerza, por la mayor participación institucional. Por eso esta herramienta te muestra, además de los niveles, en qué sesión y zona horaria clave se encuentra el mercado en cada momento.</p>
+    <p>Nada de esto garantiza el resultado de una operación: son herramientas de lectura de contexto, no señales infalibles. Combínalas siempre con tu propia gestión de riesgo.</p>
+  </section>
+
+  <div class="ad-slot ad-slot--incontent container">
+    <span>ANUNCIO</span>
+    <!-- PEGA AQUÍ TU CÓDIGO DE ADSENSE -->
+  </div>
+
+  <section id="noticias" class="seccion container">
+    <h2>Noticias económicas del día</h2>
+    <p class="seccion-intro">Publicaciones macroeconómicas de alto y medio impacto que suelen mover Forex y el oro. Una noticia relevante puede invalidar cualquier análisis técnico en segundos: revisa siempre el calendario antes de operar cerca de su publicación.</p>
+    <div class="noticias-widget-wrap">
+      <div class="tradingview-widget-container" data-noticias-widget>
+        <p class="tv-fallback">Cargando calendario económico…</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="usos" class="seccion container">
+    <h2>Para quién es esta herramienta</h2>
+    <div class="usos-grid" data-usos>
+      <article class="uso-card"><h3>Day trading intradía</h3><p>Ubica en segundos el rango del día anterior y las zonas de liquidez antes de la apertura de Londres o Nueva York.</p></article>
+      <article class="uso-card"><h3>Swing trading</h3><p>Usa el PDH/PDL como referencia de estructura al planear entradas de varios días.</p></article>
+      <article class="uso-card"><h3>Estudiantes de ICT y SMC</h3><p>Practica identificar barridos de liquidez y zonas horarias clave con datos reales, sin dibujarlos a mano.</p></article>
+      <article class="uso-card"><h3>Gestión de riesgo</h3><p>Revisa el contexto de la sesión anterior para fijar invalidaciones coherentes, no niveles arbitrarios.</p></article>
+      <article class="uso-card"><h3>Creadores de contenido de trading</h3><p>Consulta en segundos los niveles clave del día para preparar directos o publicaciones.</p></article>
+    </div>
+  </section>
+
+  <section id="conceptos" class="seccion container">
+    <h2>Conceptos técnicos: SMC, ICT y Price Action</h2>
+    <p class="seccion-intro">Glosario rápido de los términos que usa esta herramienta y que verás repetidos en cualquier contenido de Smart Money Concepts, ICT y Price Action.</p>
+    <div class="conceptos-grid" data-conceptos>
+      <div class="concepto-card"><h3>Acción del precio (Price Action)</h3><p>Analizar el movimiento del precio (velas, máximos, mínimos, rangos) sin depender de indicadores. Es la base sobre la que se apoyan tanto ICT como SMC.</p></div>
+      <div class="concepto-card"><h3>Liquidez</h3><p>Las órdenes stop-loss y de entrada acumuladas por encima de máximos recientes y por debajo de mínimos recientes. El precio tiende a moverse hacia zonas de alta liquidez antes de continuar su tendencia.</p></div>
+      <div class="concepto-card"><h3>Barrido de liquidez</h3><p>Movimiento que perfora un máximo o mínimo reciente para "cazar" los stops acumulados ahí, y después revierte con fuerza en la dirección contraria.</p></div>
+      <div class="concepto-card"><h3>Movimiento trampa (Judas Swing)</h3><p>Barrido de liquidez que ocurre justo al inicio de una zona horaria clave, pensado para atrapar a los operadores que entran en la dirección equivocada antes del movimiento real.</p></div>
+      <div class="concepto-card"><h3>Estructura de mercado</h3><p>La secuencia de máximos y mínimos que forma el precio. Una estructura alcista hace máximos y mínimos cada vez más altos; una bajista, cada vez más bajos.</p></div>
+      <div class="concepto-card"><h3>Ruptura de estructura (BOS)</h3><p>Del inglés Break of Structure: el precio cierra más allá de un máximo o mínimo relevante, confirmando que la tendencia en curso continúa.</p></div>
+      <div class="concepto-card"><h3>Cambio de carácter (CHoCH)</h3><p>Del inglés Change of Character: la primera ruptura en sentido contrario a la tendencia previa, la primera señal de que el sesgo del mercado podría estar girando.</p></div>
+      <div class="concepto-card"><h3>Bloque de órdenes (Order Block)</h3><p>La última vela contraria antes de un movimiento impulsivo fuerte. Se considera una zona donde el "dinero institucional" dejó órdenes pendientes, y suele actuar como soporte o resistencia cuando el precio vuelve a visitarla.</p></div>
+      <div class="concepto-card"><h3>Hueco de valor razonable (Fair Value Gap)</h3><p>Un hueco de desequilibrio entre tres velas consecutivas, donde el precio se movió tan rápido que dejó una zona sin negociar. A menudo el precio vuelve a "rellenarlo" antes de continuar.</p></div>
+      <div class="concepto-card"><h3>Desplazamiento (Displacement)</h3><p>Un movimiento de velas grandes y consecutivas en la misma dirección, señal de entrada agresiva de liquidez institucional y origen habitual de los bloques de órdenes y huecos de valor relevantes.</p></div>
+      <div class="concepto-card"><h3>Objetivo de liquidez (Draw on Liquidity)</h3><p>El nivel hacia el que el mercado parece "querer" dirigirse a continuación: normalmente el siguiente máximo o mínimo relevante donde hay liquidez acumulada.</p></div>
+      <div class="concepto-card"><h3>Zona horaria clave (Kill Zone)</h3><p>Las franjas horarias con mayor probabilidad de movimientos direccionales fuertes, típicamente coincidiendo con la apertura de Londres y de Nueva York.</p></div>
+      <div class="concepto-card"><h3>Entrada óptima de Fibonacci (OTE)</h3><p>Del inglés Optimal Trade Entry: la zona entre el 61,8% y el 79% de retroceso de un movimiento impulsivo, usada como área preferente para buscar entradas a favor de la tendencia.</p></div>
+      <div class="concepto-card"><h3>Máximo y mínimo del día anterior (PDH / PDL)</h3><p>El máximo y el mínimo del día de negociación anterior, dos de los niveles de liquidez más vigilados.</p></div>
+      <div class="concepto-card"><h3>Mitigación</h3><p>Cuando el precio vuelve a una zona (un Order Block, por ejemplo) y la atraviesa por completo. Se considera que la zona queda "mitigada" o consumida, y pierde buena parte de su relevancia para operar.</p></div>
+    </div>
+  </section>
+
+  <section id="faq" class="seccion container">
+    <h2>Preguntas frecuentes</h2>
+    <div class="faq-list" data-faqs>
+      <details><summary>¿Esto es una recomendación de compra o venta?</summary><p>Los niveles de entrada, stop loss y take profit se calculan aplicando reglas técnicas (estructura de mercado, Order Blocks, Fibonacci y liquidez) sobre datos históricos, de forma automática. No son una recomendación personalizada ni una garantía de resultado: verifícalos siempre con tu propio análisis antes de operar.</p></details>
+      <details><summary>¿Por qué a veces no aparece ninguna señal?</summary><p>Cuando la estructura reciente no muestra una ruptura clara (BOS) ni un Order Block identificable, la herramienta lo indica en vez de inventar una señal forzada.</p></details>
+      <details><summary>¿Cómo se calculan el stop loss y los take profit?</summary><p>El stop loss se coloca más allá del Order Block o el origen del movimiento. Los take profit usan la siguiente liquidez no capturada (por ejemplo el PDH/PDL) y extensiones de Fibonacci (127% y 161,8%).</p></details>
+      <details><summary>¿Qué son los conceptos ICT y Smart Money Concepts (SMC)?</summary><p>Un conjunto de ideas sobre liquidez, barridos de liquidez, estructura de mercado y zonas horarias clave.</p></details>
+      <details><summary>¿Por qué son importantes los máximos y mínimos del día anterior?</summary><p>El PDH y el PDL suelen actuar como imanes de liquidez: zonas donde es probable que el precio busque operativa antes de continuar o revertir.</p></details>
+      <details><summary>¿De dónde salen los datos de precio?</summary><p>De fuentes de mercado de acceso gratuito, actualizadas periódicamente. Si fallan, la web te avisa y muestra la última actualización disponible o un ejemplo ilustrativo.</p></details>
+      <details><summary>¿Con qué frecuencia se actualizan los niveles?</summary><p>Varias veces por hora. La hora de la última actualización aparece junto al análisis de cada instrumento.</p></details>
+      <details><summary>¿Necesito registrarme para usarla?</summary><p>No, funciona directamente al entrar, sin cuentas ni instalaciones.</p></details>
+      <details><summary>¿En qué zona horaria están las sesiones?</summary><p>En UTC. Asia 00:00–08:00, Londres 08:00–13:00, Nueva York 13:00–21:00 (franjas aproximadas con fines educativos).</p></details>
+      <details><summary>¿Funciona para criptomonedas o acciones?</summary><p>Por ahora se centra en EUR/USD, GBP/USD, USD/JPY y XAU/USD (oro).</p></details>
+    </div>
+  </section>
+
+  <aside class="mas-herramientas container">
+    <p>Liquidez Diaria forma parte de una familia de herramientas gratuitas para traders. Próximamente: calculadora de riesgo por operación y diario de trading.</p>
+  </aside>
+</main>
+
+<footer class="site-footer">
+  <div class="container site-footer__inner">
+    <p>© <span data-anio>2026</span> Liquidez Diaria — Contenido educativo, no es asesoramiento financiero.</p>
+    <nav>
+      <a href="privacidad.html">Privacidad</a>
+      <a href="aviso-legal.html">Aviso legal</a>
+    </nav>
+  </div>
+</footer>
+
+<!-- Pop-up de anuncio: se dispara tras generar un análisis, con cierre explícito -->
+<dialog class="ad-dialog" data-ad-popup>
+  <button type="button" class="ad-dialog__close" data-ad-popup-close aria-label="Cerrar anuncio">×</button>
+  <div class="ad-slot ad-slot--popup">
+    <span>ANUNCIO</span>
+    <!-- PEGA AQUÍ TU CÓDIGO DE ADSENSE -->
+  </div>
+  <button type="button" class="btn btn--ghost" data-ad-popup-close>Cerrar y seguir</button>
+</dialog>
+
+<!-- Notificación de esquina -->
+<aside class="ad-toast" data-ad-toast hidden>
+  <button type="button" class="ad-toast__close" data-ad-toast-close aria-label="Cerrar notificación">×</button>
+  <div class="ad-slot ad-slot--toast"><span>ANUNCIO</span></div>
+</aside>
+
+<script defer src="lib/manifest.js"></script>
+<script defer src="main.js?v=20260818"></script>
+</body>
+</html>
