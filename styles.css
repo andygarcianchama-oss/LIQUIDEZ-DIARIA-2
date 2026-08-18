@@ -157,7 +157,8 @@ h1, h2, h3 { text-wrap: balance; line-height: 1.15; letter-spacing: -0.01em; fon
 @media (min-width: 640px) { .sesiones-grid { grid-template-columns: repeat(3, 1fr); } }
 .sesion-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: .8rem .9rem; }
 .sesion-card--vacia { color: var(--text-muted); font-size: .85rem; }
-.sesion-card__label { display: block; font-weight: 700; font-size: .85rem; margin-bottom: .45rem; }
+.sesion-card__label { display: block; font-weight: 700; font-size: .85rem; margin-bottom: .1rem; }
+.sesion-card__rango { display: block; font-family: var(--mono); font-size: .78rem; color: var(--text-muted); margin-bottom: .45rem; }
 .sesion-card__niveles { display: flex; gap: 1rem; font-family: var(--mono); font-size: .88rem; }
 .sesion-card__niveles em { font-style: normal; color: var(--text-muted); margin-right: .25rem; }
 

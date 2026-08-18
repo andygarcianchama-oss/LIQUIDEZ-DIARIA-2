@@ -17,13 +17,23 @@
   // ---------------------------------------------------------------------
   // Utilidades de fecha/hora
   // ---------------------------------------------------------------------
-  function horaUTC(tsSegundos) {
-    var d = new Date(tsSegundos * 1000);
-    var hh = String(d.getUTCHours()).padStart(2, "0");
-    var mm = String(d.getUTCMinutes()).padStart(2, "0");
-    return hh + ":" + mm;
-  }
   function diaUTC(tsSegundos) { return Math.floor(tsSegundos / 86400); }
+  // Las sesiones y niveles se calculan internamente en UTC (es el estándar
+  // para definir horarios de mercado), pero todo lo que se muestra en
+  // pantalla se convierte a hora de España, con cambio de horario de
+  // verano/invierno calculado automáticamente por el propio navegador.
+  function horaEspanaDesdeUTC(horaUTCEntera) {
+    var hoy = new Date();
+    var d = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate(), horaUTCEntera, 0, 0));
+    return new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Madrid" }).format(d);
+  }
+  function horaEspanaDesdeTs(tsSegundos) {
+    var d = new Date(tsSegundos * 1000);
+    return new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Madrid" }).format(d);
+  }
+  function rangoHorarioEspana(startUTC, endUTC) {
+    return horaEspanaDesdeUTC(startUTC) + "–" + horaEspanaDesdeUTC(endUTC);
+  }
   function fechaLegible(tsSegundos) {
     var d = new Date(tsSegundos * 1000);
     return d.toLocaleDateString("es-ES", { day: "2-digit", month: "short", timeZone: "UTC" });
@@ -61,10 +71,12 @@
         var hUTC = new Date(v.t * 1000).getUTCHours();
         return hUTC >= s.startUTC && hUTC < s.endUTC;
       });
-      if (!velasSesion.length) return { id: s.id, label: s.label, high: null, low: null };
+      var rango = rangoHorarioEspana(s.startUTC, s.endUTC);
+      if (!velasSesion.length) return { id: s.id, label: s.label, rango: rango, high: null, low: null };
       return {
         id: s.id,
         label: s.label,
+        rango: rango,
         high: Math.max.apply(null, velasSesion.map(function (v) { return v.h; })),
         low: Math.min.apply(null, velasSesion.map(function (v) { return v.l; }))
       };
@@ -230,14 +242,14 @@
     var dec = instrumento.decimals;
     var estadoTexto = { "sin testear": "Sin testear", "testeada": "Testeada", "mitigada": "Mitigada" };
     cont.innerHTML = zonas.map(function (z) {
-      var fecha = new Date(z.t * 1000).toLocaleString("es-ES", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+      var fecha = new Date(z.t * 1000).toLocaleString("es-ES", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" });
       return '<div class="zona-liquidez zona-liquidez--' + z.direccion + ' zona-liquidez--' + z.estado.replace(" ", "-") + '">' +
         '<div class="zona-liquidez__top">' +
         '<span class="zona-liquidez__tipo">' + (z.direccion === "alcista" ? "Bloque de órdenes alcista" : "Bloque de órdenes bajista") + '</span>' +
         '<span class="zona-liquidez__estado">' + estadoTexto[z.estado] + '</span>' +
         '</div>' +
         '<span class="zona-liquidez__rango">' + fmt(z.ob.bajo, dec) + ' – ' + fmt(z.ob.alto, dec) + '</span>' +
-        '<span class="zona-liquidez__fecha">Formado ' + fecha + ' UTC</span>' +
+        '<span class="zona-liquidez__fecha">Formado ' + fecha + ' (hora de España)</span>' +
         '</div>';
     }).join("");
   }
@@ -368,7 +380,7 @@
     }
 
     if (p.killzoneActual) {
-      frases.push("Ahora mismo (" + String(p.horaActualUTC).padStart(2, "0") + ":00 UTC aprox.) el mercado está dentro de la " + p.killzoneActual.label + ", la franja horaria que la metodología señala como más propensa a movimientos direccionales.");
+      frases.push("Ahora mismo (" + horaEspanaDesdeUTC(p.horaActualUTC) + " hora de España aprox.) el mercado está dentro de la " + p.killzoneActual.label + ", la franja horaria que la metodología señala como más propensa a movimientos direccionales.");
     } else if (p.sesionActual) {
       frases.push("Ahora mismo el mercado está en la " + p.sesionActual.label + ", fuera de las zonas horarias clave principales de Londres y Nueva York.");
     } else {
@@ -455,8 +467,7 @@
 
     var actualizado = $("[data-actualizado]");
     if (actualizado) {
-      var d = new Date((json.fetched_at || 0) * 1000);
-      actualizado.textContent = "Última actualización: " + d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }) + " UTC · " + fechaLegibleHoy();
+      actualizado.textContent = "Última actualización: " + horaEspanaDesdeTs(json.fetched_at || 0) + " (hora de España) · " + fechaLegibleHoy();
     }
 
     var dec = instrumento.decimals;
@@ -473,6 +484,7 @@
       cont.innerHTML = analisis.sesiones.map(function (s) {
         return '<div class="sesion-card">' +
           '<span class="sesion-card__label">' + escHTML(s.label) + '</span>' +
+          '<span class="sesion-card__rango">' + escHTML(s.rango) + '</span>' +
           '<div class="sesion-card__niveles">' +
           '<span><em>Máx.</em> ' + fmt(s.high, dec) + '</span>' +
           '<span><em>Mín.</em> ' + fmt(s.low, dec) + '</span>' +
@@ -580,7 +592,7 @@
         autosize: true,
         symbol: contenedor.getAttribute("data-tv-symbol") || "OANDA:EURUSD",
         interval: "15",
-        timezone: "Etc/UTC",
+        timezone: "Europe/Madrid",
         theme: "light",
         style: "1",
         locale: "es",

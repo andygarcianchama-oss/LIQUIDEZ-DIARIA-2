@@ -1,0 +1,19 @@
+{
+  // Configuración de despliegue para Cloudflare Workers (sistema nuevo que
+  // sustituye a "Pages" para proyectos importados desde Git en 2026).
+  //
+  // "assets.directory": "./" -> sirve todo el sitio (index.html, main.js,
+  // styles.css, etc.) tal cual, como una web estática normal.
+  //
+  // "main": "src/index.js" -> antes de servir un archivo estático, deja pasar
+  // la petición por este pequeño script, que solo se activa para la ruta
+  // /api/datos (el "motor de precios"). Todo lo demás se sirve como archivo
+  // estático sin pasar por código.
+  "name": "liquidez-diaria-2",
+  "compatibility_date": "2024-09-23",
+  "main": "src/index.js",
+  "assets": {
+    "directory": "./",
+    "binding": "ASSETS"
+  }
+}
