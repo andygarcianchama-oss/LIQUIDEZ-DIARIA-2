@@ -11,10 +11,10 @@
 // despliega alguna vez ahí en vez de en Workers).
 
 const SIMBOLOS = {
-  EURUSD: { yahoo: "EURUSD=X", stooq: "eurusd", demoBase: 1.085, demoRango: 0.006 },
-  GBPUSD: { yahoo: "GBPUSD=X", stooq: "gbpusd", demoBase: 1.265, demoRango: 0.008 },
-  USDJPY: { yahoo: "USDJPY=X", stooq: "usdjpy", demoBase: 151.2, demoRango: 0.9 },
-  XAUUSD: { yahoo: "XAUUSD=X", stooq: "xauusd", demoBase: 2415.0, demoRango: 18.0 },
+  EURUSD: { yahoo: "EURUSD=X", stooq: "eurusd", demoBase: 1.156, demoRango: 0.0065 },
+  GBPUSD: { yahoo: "GBPUSD=X", stooq: "gbpusd", demoBase: 1.3535, demoRango: 0.0085 },
+  USDJPY: { yahoo: "USDJPY=X", stooq: "usdjpy", demoBase: 157.35, demoRango: 0.95 },
+  XAUUSD: { yahoo: "XAUUSD=X", stooq: "xauusd", demoBase: 4358.0, demoRango: 33.0 },
 };
 
 const CACHE_TTL = 900; // 15 minutos
@@ -29,7 +29,7 @@ function jsonResponse(data, cacheControl) {
   });
 }
 
-async function traerYahoo(yahooSimbolo) {
+async function traerYahoo(yahooSimbolo, diag) {
   const url =
     "https://query1.finance.yahoo.com/v8/finance/chart/" +
     encodeURIComponent(yahooSimbolo) +
@@ -42,13 +42,13 @@ async function traerYahoo(yahooSimbolo) {
         Accept: "*/*",
       },
     });
-    if (!res.ok) return null;
+    if (!res.ok) { diag.yahoo = "HTTP " + res.status; return null; }
     const json = await res.json();
     const result = json && json.chart && json.chart.result && json.chart.result[0];
-    if (!result) return null;
+    if (!result) { diag.yahoo = "sin result en JSON (" + JSON.stringify(json).slice(0, 200) + ")"; return null; }
     const ts = result.timestamp;
     const q = result.indicators && result.indicators.quote && result.indicators.quote[0];
-    if (!ts || !q) return null;
+    if (!ts || !q) { diag.yahoo = "sin timestamp/quote"; return null; }
     const candles = [];
     for (let i = 0; i < ts.length; i++) {
       const o = q.open ? q.open[i] : null;
@@ -58,8 +58,10 @@ async function traerYahoo(yahooSimbolo) {
       if (o == null || h == null || l == null || c == null) continue;
       candles.push({ t: Math.floor(ts[i]), o: +o, h: +h, l: +l, c: +c });
     }
-    return candles.length >= 10 ? candles : null;
+    if (candles.length < 10) { diag.yahoo = "solo " + candles.length + " velas válidas"; return null; }
+    return candles;
   } catch (e) {
+    diag.yahoo = "excepción: " + (e && e.message ? e.message : String(e));
     return null;
   }
 }
@@ -68,15 +70,16 @@ function parseCsvLine(line) {
   return line.split(",").map((v) => v.trim());
 }
 
-async function traerStooq(stooqSimbolo) {
+async function traerStooq(stooqSimbolo, diag) {
   const url = "https://stooq.com/q/d/l/?s=" + encodeURIComponent(stooqSimbolo) + "&i=15";
   try {
     const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
-    if (!res.ok) return null;
+    if (!res.ok) { diag.stooq = "HTTP " + res.status; return null; }
     const body = await res.text();
-    if (!body || /exceeded/i.test(body)) return null;
+    if (!body) { diag.stooq = "respuesta vacía"; return null; }
+    if (/exceeded/i.test(body)) { diag.stooq = "límite de la fuente excedido"; return null; }
     const lineas = body.trim().split(/\r\n|\r|\n/);
-    if (lineas.length < 10) return null;
+    if (lineas.length < 10) { diag.stooq = "solo " + lineas.length + " líneas (" + body.slice(0, 150) + ")"; return null; }
     const header = parseCsvLine(lineas.shift()).map((h) => h.toLowerCase());
     const idx = {};
     header.forEach((h, i) => {
@@ -90,6 +93,7 @@ async function traerStooq(stooqSimbolo) {
       idx.low == null ||
       idx.close == null
     ) {
+      diag.stooq = "cabecera CSV inesperada: " + header.join(",");
       return null;
     }
     const candles = [];
@@ -109,8 +113,10 @@ async function traerStooq(stooqSimbolo) {
         c: parseFloat(c[idx.close]) || 0,
       });
     }
-    return candles.length >= 10 ? candles : null;
+    if (candles.length < 10) { diag.stooq = "solo " + candles.length + " velas válidas tras parsear"; return null; }
+    return candles;
   } catch (e) {
+    diag.stooq = "excepción: " + (e && e.message ? e.message : String(e));
     return null;
   }
 }
@@ -155,10 +161,11 @@ async function manejarDatos(request, env, ctx) {
   const cache = typeof caches !== "undefined" ? caches.default : null;
   const cacheKey = new Request("https://cache.liquidezdiaria.internal/datos/" + simbolo);
 
-  let candles = await traerYahoo(cfg.yahoo);
+  const diag = {};
+  let candles = await traerYahoo(cfg.yahoo, diag);
   let fuente = "yahoo";
   if (!candles) {
-    candles = await traerStooq(cfg.stooq);
+    candles = await traerStooq(cfg.stooq, diag);
     fuente = "stooq";
   }
 
@@ -199,6 +206,7 @@ async function manejarDatos(request, env, ctx) {
     fuente: "demo",
     demo: true,
     stale: false,
+    diag: diag, // temporal: por qué fallaron Yahoo y Stooq (quitar cuando esté diagnosticado)
   };
   return jsonResponse(demo, "no-cache, must-revalidate");
 }
