@@ -228,8 +228,45 @@ h1, h2, h3 { text-wrap: balance; line-height: 1.15; letter-spacing: -0.01em; fon
 .setup-card__niveles span { display: flex; flex-direction: column; gap: .15rem; font-family: var(--mono); font-size: .88rem; font-weight: 700; }
 .setup-card__niveles em { font-style: normal; font-weight: 600; text-transform: uppercase; letter-spacing: .02em; font-size: .68rem; color: var(--text-muted); font-family: var(--sans); }
 .setup-card__fecha { font-size: .76rem; color: var(--text-muted); }
+.setup-card__confluencia-detalle { font-size: .76rem; color: #6c2bd9; font-weight: 600; }
+@media (prefers-color-scheme: dark) { .setup-card__confluencia-detalle { color: #c9a8ff; } }
 .chip--confluencia { background: #f0e7ff; border-color: #d3b9ff; color: #6c2bd9; }
 @media (prefers-color-scheme: dark) { .chip--confluencia { background: #2a1a4d; color: #c9a8ff; border-color: #4a2f86; } }
+
+/* Diagrama de niveles (SVG) dentro de cada setup-card: entrada/OTE/SL/TP1-2,
+   precio actual y zonas en confluencia. El color nunca es la única señal:
+   cada elemento lleva también texto y una posición fija en el eje de precio,
+   así que sigue siendo legible en blanco y negro o con daltonismo. */
+.setup-diagrama { width: 100%; height: auto; display: block; margin: .1rem 0; }
+.diagrama__fondo { fill: var(--bg); }
+.diagrama__pdhpdl { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 2 3; opacity: .6; }
+.diagrama__pdhpdl-txt { fill: var(--text-muted); font-size: 8px; font-family: var(--mono); }
+.diagrama__confluencia { fill: none; stroke: #6c2bd9; stroke-width: 1.5; stroke-dasharray: 3 2; opacity: .75; }
+.diagrama__confluencia-txt { fill: #6c2bd9; font-size: 8px; font-family: var(--mono); font-weight: 700; }
+@media (prefers-color-scheme: dark) {
+  .diagrama__confluencia { stroke: #c9a8ff; }
+  .diagrama__confluencia-txt { fill: #c9a8ff; }
+}
+.diagrama__entrada { opacity: .16; }
+.diagrama__entrada--alcista { fill: var(--up); }
+.diagrama__entrada--bajista { fill: var(--down); }
+.diagrama__ote { opacity: .34; }
+.diagrama__ote--alcista { fill: var(--up); }
+.diagrama__ote--bajista { fill: var(--down); }
+.diagrama__label { fill: var(--text); font-size: 8px; font-family: var(--sans); font-weight: 700; }
+.diagrama__sl { stroke: var(--warn-border); stroke-width: 1.5; stroke-dasharray: 4 2; }
+.diagrama__sl-txt { fill: #7a5a00; font-size: 8px; font-family: var(--mono); font-weight: 700; }
+@media (prefers-color-scheme: dark) { .diagrama__sl-txt { fill: #e8c96a; } }
+.diagrama__tp { stroke-width: 1.5; }
+.diagrama__tp--alcista { stroke: var(--up); }
+.diagrama__tp--bajista { stroke: var(--down); }
+.diagrama__tp-txt { font-size: 8px; font-family: var(--mono); font-weight: 700; }
+.diagrama__tp-txt--alcista { fill: var(--up); }
+.diagrama__tp-txt--bajista { fill: var(--down); }
+.diagrama__precio { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 5 3; }
+.diagrama__precio-txt { fill: var(--accent-dark); font-size: 8px; font-family: var(--mono); font-weight: 700; }
+@media (prefers-color-scheme: dark) { .diagrama__precio-txt { fill: #8fb4ff; } }
+.diagrama__precio-txt--fuera { fill: var(--accent); }
 
 /* =============================================================
    6quater. Zonas de liquidez (varios Order Blocks)
@@ -343,9 +380,40 @@ h1, h2, h3 { text-wrap: balance; line-height: 1.15; letter-spacing: -0.01em; fon
 .ad-toast.is-visible { opacity: 1; transform: translateY(0); }
 .ad-toast__close { position: absolute; top: -.5rem; right: -.5rem; width: 22px; height: 22px; border-radius: 50%; background: var(--text); color: var(--surface); font-size: .85rem; display: flex; align-items: center; justify-content: center; }
 
-.btn { display: inline-flex; align-items: center; justify-content: center; padding: .65rem 1.1rem; border-radius: var(--radius-sm); font-weight: 700; font-size: .9rem; }
+.btn { display: inline-flex; align-items: center; justify-content: center; padding: .65rem 1.1rem; border-radius: var(--radius-sm); font-weight: 700; font-size: .9rem; cursor: pointer; border: none; }
 .btn--ghost { background: var(--bg); border: 1px solid var(--border); color: var(--text); }
 .btn--ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn--primario { background: var(--accent); border: 1px solid var(--accent); color: #fff; }
+.btn--primario:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+.btn:disabled { opacity: .6; cursor: not-allowed; }
+
+/* =============================================================
+   6quinquies. Avisos de precio (notificaciones push)
+   ============================================================= */
+.alertas-panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1rem 1.1rem; margin-top: 1.25rem; display: flex; flex-direction: column; gap: .6rem;
+}
+.alertas-panel__top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .4rem; }
+.alertas-panel__top h2 { font-size: 1rem; margin: 0; }
+.alertas-panel__estado {
+  font-size: .72rem; font-weight: 700; padding: .2rem .6rem; border-radius: 999px;
+  background: var(--bg); border: 1px solid var(--border); color: var(--text-muted); text-transform: uppercase; letter-spacing: .02em;
+}
+.alertas-nota { font-size: .85rem; color: var(--text-muted); margin: 0; }
+.alertas-panel__body { display: flex; flex-direction: column; gap: .75rem; }
+.alertas-instrumentos { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: .6rem .75rem; display: flex; flex-wrap: wrap; gap: .5rem .9rem; }
+.alertas-instrumentos legend { font-size: .78rem; font-weight: 700; color: var(--text-muted); padding: 0 .3rem; }
+.alertas-instrumentos__item { display: inline-flex; align-items: center; gap: .35rem; font-size: .88rem; font-weight: 600; cursor: pointer; }
+.alertas-umbral { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; font-size: .88rem; font-weight: 600; }
+.alertas-umbral__input {
+  width: 5rem; padding: .4rem .5rem; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font-family: var(--mono); font-weight: 700; text-align: center;
+}
+.alertas-acciones { display: flex; flex-wrap: wrap; gap: .55rem; }
+.alertas-mensaje { font-size: .84rem; font-weight: 600; color: var(--up); margin: 0; }
+.alertas-mensaje--error { color: var(--down); }
+.alertas-no-soportado { font-size: .84rem; color: var(--text-muted); margin: 0; }
 
 /* =============================================================
    8. Content sections

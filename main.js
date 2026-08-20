@@ -17,7 +17,23 @@
   // ---------------------------------------------------------------------
   // Utilidades de fecha/hora
   // ---------------------------------------------------------------------
-  function diaUTC(tsSegundos) { return Math.floor(tsSegundos / 86400); }
+  // El "día de trading" NO empieza a medianoche UTC: empieza cuando cierra
+  // la sesión de Nueva York (las sesiones de abajo ya modelan Asia 00-08,
+  // Londres 08-13 y NY 13-21 UTC, dejando 21-24 UTC como el hueco de baja
+  // liquidez entre el cierre de NY y la apertura de Asia). Ese es el mismo
+  // corte que usan brokers y TradingView para las velas diarias de forex y
+  // oro. Antes este código cortaba a las 00:00 UTC, así que "máximo/mínimo
+  // de hoy" podía incluir movimientos de las últimas horas que el broker
+  // del usuario todavía contaba como "ayer" (o al revés), dando valores que
+  // no cuadraban con el gráfico real.
+  var ROLLOVER_DIA_UTC_SEGUNDOS = 21 * 3600;
+  function diaUTC(tsSegundos) { return Math.floor((tsSegundos - ROLLOVER_DIA_UTC_SEGUNDOS) / 86400); }
+  // Fecha legible de un día de trading a partir de su clave (el entero que
+  // devuelve diaUTC): se toma el mediodía UTC del tramo 00-21 UTC de ese
+  // día para no depender de si ya hay velas cargadas justo tras el corte.
+  function fechaLegibleDia(diaKey) {
+    return fechaLegible(diaKey * 86400 + ROLLOVER_DIA_UTC_SEGUNDOS + 12 * 3600);
+  }
   // Las sesiones y niveles se calculan internamente en UTC (es el estándar
   // para definir horarios de mercado), pero todo lo que se muestra en
   // pantalla se convierte a hora de España, con cambio de horario de
@@ -105,7 +121,7 @@
         low: Math.min.apply(null, velasSesion.map(function (v) { return v.l; }))
       };
     });
-    var fechaHoy = velasHoy.length ? fechaLegible(velasHoy[0].t) : fechaLegibleHoy();
+    var fechaHoy = velasHoy.length ? fechaLegibleDia(hoyKey) : fechaLegibleHoy();
 
     var barridoAlcista = todayHigh != null && todayHigh > PDH;
     var barridoBajista = todayLow != null && todayLow < PDL;
@@ -128,7 +144,7 @@
     return {
       PDH: PDH, PDL: PDL, sesiones: sesiones, sesionesHoy: sesionesHoy,
       todayHigh: todayHigh, todayLow: todayLow, precioActual: precioActual,
-      fechaAyer: fechaLegible(velasAyer[0].t), fechaHoy: fechaHoy,
+      fechaAyer: fechaLegibleDia(ayerKey), fechaHoy: fechaHoy,
       barridoAlcista: barridoAlcista, barridoBajista: barridoBajista,
       relato: relato, sesionActual: sesionActual, killzoneActual: killzoneActual,
       velasOrdenadas: ordenadas
@@ -265,13 +281,21 @@
   // Block y un FVG coincidiendo en la misma zona) cuentan como confluencia
   // según la metodología ICT/SMC.
   function detectarConfluencias(zonas) {
+    zonas.forEach(function (z) { z.confluyeCon = []; });
     for (var i = 0; i < zonas.length; i++) {
       for (var j = i + 1; j < zonas.length; j++) {
         var a = zonas[i], b = zonas[j];
         if (a.tf === b.tf && a.tipo === b.tipo) continue;
         if (a.direccion !== b.direccion) continue;
         var solapa = a.ob.bajo <= b.ob.alto && b.ob.bajo <= a.ob.alto;
-        if (solapa) { a.confluencia = true; b.confluencia = true; }
+        if (solapa) {
+          a.confluencia = true; b.confluencia = true;
+          // Guardamos con qué zona concreta confluye cada una (temporalidad,
+          // tipo y rango de precio) para poder señalarlo en el diagrama y en
+          // el texto, no solo marcar un booleano genérico.
+          a.confluyeCon.push({ tf: b.tfLabel, tipo: b.tipo, bajo: b.ob.bajo, alto: b.ob.alto });
+          b.confluyeCon.push({ tf: a.tfLabel, tipo: a.tipo, bajo: a.ob.bajo, alto: a.ob.alto });
+        }
       }
     }
     return zonas;
@@ -553,10 +577,105 @@
     }).join("");
   }
 
+  // ---------------------------------------------------------------------
+  // Diagrama de confluencias por setup: una "escalera de precio" SVG que
+  // sitúa visualmente TP2/TP1/zona de entrada/zona OTE/stop y el precio
+  // actual, y señala con un marco punteado morado cualquier otra zona
+  // (de otra temporalidad o tipo) que confluya con la zona de entrada.
+  // El color nunca es la única forma de distinguir algo: cada elemento
+  // lleva también su etiqueta de texto y su posición en el eje de precio.
+  // ---------------------------------------------------------------------
+  function construirDiagramaSetup(instrumento, z, precioActual, PDH, PDL) {
+    var s = z.setup;
+    var dec = instrumento.decimals;
+    var alcista = s.sesgo === "alcista";
+    var W = 320, H = 176, ML = 74, MR = 10, MT = 10, MB = 10;
+    var plotH = H - MT - MB;
+
+    var nivelesBase = [s.stopLoss, s.tp1, s.tp2, s.entradaBaja, s.entradaAlta, s.oteBaja, s.oteAlta];
+    var lo = Math.min.apply(null, nivelesBase), hi = Math.max.apply(null, nivelesBase);
+    var pad = Math.max((hi - lo) * 0.12, instrumento.pip * 2);
+    var domLo = lo - pad, domHi = hi + pad;
+    if (domHi <= domLo) domHi = domLo + instrumento.pip; // por si el rango es degenerado
+
+    function y(precio) {
+      var t = (precio - domLo) / (domHi - domLo);
+      return MT + (1 - t) * plotH;
+    }
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function etq(v) { return fmt(v, dec); }
+
+    var partes = [];
+    partes.push('<rect class="diagrama__fondo" x="0" y="0" width="' + W + '" height="' + H + '" rx="8"></rect>');
+
+    // PDH/PDL: solo si caen dentro del dominio visible (si el máximo/mínimo
+    // del día anterior queda lejos, se omite para no aplastar la zona de
+    // trading en una franja ilegible).
+    [{ v: PDH, label: "PDH" }, { v: PDL, label: "PDL" }].forEach(function (item) {
+      if (item.v == null || item.v < domLo || item.v > domHi) return;
+      var yy = y(item.v);
+      partes.push('<line class="diagrama__pdhpdl" x1="' + ML + '" y1="' + yy + '" x2="' + (W - MR) + '" y2="' + yy + '"></line>');
+      partes.push('<text class="diagrama__pdhpdl-txt" x="' + (W - MR) + '" y="' + (yy - 3) + '" text-anchor="end">' + item.label + ' ' + etq(item.v) + '</text>');
+    });
+
+    // Zonas en confluencia con la zona de entrada: marco punteado morado +
+    // etiqueta con la temporalidad y el tipo de zona que coincide aquí.
+    var confluencias = (z.confluyeCon || []).slice().sort(function (a, b) { return b.alto - a.alto; });
+    var MAX_TAGS = 3;
+    confluencias.slice(0, MAX_TAGS).forEach(function (c, idx) {
+      var cBajo = clamp(c.bajo, domLo, domHi), cAlto = clamp(c.alto, domLo, domHi);
+      if (cAlto <= cBajo) { cAlto = cBajo + (domHi - domLo) * 0.01; }
+      var yTop = y(cAlto), yBot = y(cBajo);
+      partes.push('<rect class="diagrama__confluencia" x="' + ML + '" y="' + yTop + '" width="' + (W - ML - MR) + '" height="' + Math.max(2, yBot - yTop) + '"></rect>');
+      var tipoLabel = c.tipo === "fvg" ? "FVG" : "OB";
+      partes.push('<text class="diagrama__confluencia-txt" x="' + (W - MR - 2) + '" y="' + (yTop - 3 - idx * 0) + '" text-anchor="end">' + escHTML(c.tf) + ' ' + tipoLabel + '</text>');
+    });
+    if (confluencias.length > MAX_TAGS) {
+      partes.push('<text class="diagrama__confluencia-txt" x="' + (W - MR - 2) + '" y="' + (H - 4) + '" text-anchor="end">+' + (confluencias.length - MAX_TAGS) + ' zona(s) más aquí</text>');
+    }
+
+    // Zona de entrada (banda ancha) y, dentro, la zona OTE (banda más
+    // saturada) — la franja "óptima" según Fibonacci/ICT.
+    var yEA = y(s.entradaAlta), yEB = y(s.entradaBaja);
+    partes.push('<rect class="diagrama__entrada diagrama__entrada--' + s.sesgo + '" x="' + ML + '" y="' + yEA + '" width="' + (W - ML - MR) + '" height="' + Math.max(2, yEB - yEA) + '"></rect>');
+    partes.push('<text class="diagrama__label" x="' + (ML + 6) + '" y="' + (yEA + (yEB - yEA) / 2 + 4) + '">Entrada ' + etq(s.entradaBaja) + '–' + etq(s.entradaAlta) + '</text>');
+    var yOA = y(s.oteAlta), yOB = y(s.oteBaja);
+    partes.push('<rect class="diagrama__ote diagrama__ote--' + s.sesgo + '" x="' + ML + '" y="' + yOA + '" width="' + (W - ML - MR) + '" height="' + Math.max(2, yOB - yOA) + '"></rect>');
+
+    // Stop loss: línea punteada en ámbar (color de riesgo, no de dirección).
+    var ySL = y(s.stopLoss);
+    partes.push('<line class="diagrama__sl" x1="' + ML + '" y1="' + ySL + '" x2="' + (W - MR) + '" y2="' + ySL + '"></line>');
+    partes.push('<text class="diagrama__sl-txt" x="' + ML + '" y="' + (ySL + (alcista ? 13 : -5)) + '">SL ' + etq(s.stopLoss) + '</text>');
+
+    // TP1 / TP2: líneas sólidas en el color de la dirección de la operación.
+    [{ v: s.tp1, label: "TP1" }, { v: s.tp2, label: "TP2" }].forEach(function (tp) {
+      var yy = y(tp.v);
+      partes.push('<line class="diagrama__tp diagrama__tp--' + s.sesgo + '" x1="' + ML + '" y1="' + yy + '" x2="' + (W - MR) + '" y2="' + yy + '"></line>');
+      partes.push('<text class="diagrama__tp-txt diagrama__tp-txt--' + s.sesgo + '" x="' + ML + '" y="' + (yy - 4) + '">' + tp.label + ' ' + etq(tp.v) + '</text>');
+    });
+
+    // Precio actual: línea discontinua azul, siempre visible por encima del
+    // resto. Si queda fuera del dominio visible, se ancla al borde con una
+    // flecha en vez de desaparecer.
+    if (precioActual != null) {
+      if (precioActual >= domLo && precioActual <= domHi) {
+        var yP = y(precioActual);
+        partes.push('<line class="diagrama__precio" x1="' + ML + '" y1="' + yP + '" x2="' + (W - MR) + '" y2="' + yP + '"></line>');
+        partes.push('<text class="diagrama__precio-txt" x="' + (ML + 6) + '" y="' + (yP - 4) + '">Precio ' + etq(precioActual) + '</text>');
+      } else {
+        var arriba = precioActual > domHi;
+        var yEdge = arriba ? MT + 3 : H - MB - 3;
+        partes.push('<text class="diagrama__precio-txt diagrama__precio-txt--fuera" x="' + (ML + 6) + '" y="' + yEdge + '">' + (arriba ? "▲" : "▼") + ' Precio ' + etq(precioActual) + '</text>');
+      }
+    }
+
+    return '<svg class="setup-diagrama" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Diagrama de niveles del setup: entrada, OTE, stop y objetivos">' + partes.join("") + '</svg>';
+  }
+
   // Pinta TODOS los setups detectados (sin límite artificial, a petición del
   // usuario), uno por cada zona de liquidez no mitigada con un movimiento de
   // origen suficientemente grande, en cualquiera de las tres temporalidades.
-  function pintarSetups(instrumento, zonas) {
+  function pintarSetups(instrumento, zonas, precioActual, PDH, PDL) {
     var cont = $("[data-setups]");
     var vacio = $("[data-setups-vacio]");
     var contador = $("[data-setups-contador]");
@@ -574,6 +693,13 @@
     cont.innerHTML = setups.map(function (z) {
       var s = z.setup;
       var fecha = new Date(z.t * 1000).toLocaleString("es-ES", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" });
+      var diagrama = "";
+      safe(function () { diagrama = construirDiagramaSetup(instrumento, z, precioActual, PDH, PDL); }, "construirDiagramaSetup");
+      var confluenciaTxt = "";
+      if (z.confluyeCon && z.confluyeCon.length) {
+        var lista = z.confluyeCon.map(function (c) { return escHTML(c.tf) + " " + (c.tipo === "fvg" ? "FVG" : "OB"); }).join(", ");
+        confluenciaTxt = '<span class="setup-card__confluencia-detalle">En confluencia con: ' + lista + '</span>';
+      }
       return '<div class="setup-card setup-card--' + s.sesgo + '">' +
         '<div class="setup-card__top">' +
         '<span class="setup-card__tf">' + escHTML(z.tfLabel) + '</span>' +
@@ -588,6 +714,7 @@
         '<span><em>TP2</em> ' + fmt(s.tp2, dec) + '</span>' +
         '<span><em>R:R</em> ' + (s.rr != null && isFinite(s.rr) ? ("1:" + s.rr.toFixed(2)) : "—") + '</span>' +
         '</div>' +
+        diagrama + confluenciaTxt +
         '<span class="setup-card__fecha">Order Block formado ' + fecha + ' (hora de España)</span>' +
         '</div>';
     }).join("");
@@ -823,7 +950,7 @@
       var fvg4h = analizarFVGTF(velas4h, instrumento, "4h", "4H", 20);
       var todasZonas = detectarConfluencias(zonas15.concat(zonas1h, zonas4h, fvg15, fvg1h, fvg4h));
       pintarZonasLiquidez(instrumento, todasZonas);
-      pintarSetups(instrumento, todasZonas);
+      pintarSetups(instrumento, todasZonas, analisis.precioActual, analisis.PDH, analisis.PDL);
     }, "analizarZonasTF");
 
     safe(function () {

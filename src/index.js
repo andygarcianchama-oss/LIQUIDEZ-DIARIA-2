@@ -8,7 +8,12 @@
 // Solo cuando la petición es a /api/datos, ejecuta el "motor de precios" de
 // abajo (idéntico en lógica a functions/api/datos.js, la versión pensada
 // para Cloudflare Pages clásico — se mantiene también por si el proyecto se
-// despliega alguna vez ahí en vez de en Workers).
+// despliega alguna vez ahí en vez de en Workers). También expone las rutas
+// /api/push/* para las alertas push (ver sección "Alertas push" más abajo)
+// y el manejador scheduled() del Cron Trigger que las dispara.
+import { calcularTodasLasZonas } from "./motor.js";
+import { enviarWebPush } from "./webpush.js";
+
 const SIMBOLOS = {
   EURUSD: { td: "EUR/USD", yahoo: "EURUSD=X", stooq: "eurusd", demoBase: 1.156, demoRango: 0.0065 },
   GBPUSD: { td: "GBP/USD", yahoo: "GBPUSD=X", stooq: "gbpusd", demoBase: 1.3535, demoRango: 0.0085 },
@@ -24,8 +29,9 @@ const SIMBOLOS = {
 const VELAS_SOLICITADAS = 1000;
 const CACHE_TTL = 900; // 15 minutos
 const CACHE_STORE_SECONDS = 21600; // 6h de margen en la Cache API como último recurso
-function jsonResponse(data, cacheControl) {
+function jsonResponse(data, cacheControl, status) {
   return new Response(JSON.stringify(data), {
+    status: status || 200,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": cacheControl || "no-cache, must-revalidate",
@@ -205,10 +211,14 @@ function generarDemo(cfg) {
   }
   return candles;
 }
-async function manejarDatos(request, env, ctx) {
-  const url = new URL(request.url);
-  let simbolo = (url.searchParams.get("symbol") || "EURUSD").toUpperCase().replace(/[^A-Z]/g, "");
-  if (!SIMBOLOS[simbolo]) simbolo = "EURUSD";
+/**
+ * Igual que antes, pero factorizada aparte de manejarDatos() para que el
+ * Cron Trigger de alertas push (ejecutarBarridoAlertas, más abajo) pueda
+ * reusar EXACTAMENTE la misma lógica de caché/fuentes de datos que ya usa
+ * la ruta /api/datos, en vez de duplicarla y arriesgarse a que ambas
+ * gasten cuota de la API en vivo por separado.
+ */
+async function obtenerDatosSimbolo(simbolo, env, ctx) {
   const cfg = SIMBOLOS[simbolo];
   const cache = typeof caches !== "undefined" ? caches.default : null;
   const cacheKey = new Request("https://cache.liquidezdiaria.internal/datos/" + simbolo);
@@ -222,7 +232,7 @@ async function manejarDatos(request, env, ctx) {
         const edad = Math.floor(Date.now() / 1000) - (dataRapida.fetched_at || 0);
         if (!dataRapida.demo && edad < CACHE_TTL) {
           dataRapida.stale = false;
-          return jsonResponse(dataRapida, "no-cache, must-revalidate");
+          return dataRapida;
         }
       }
     } catch (e) {
@@ -249,12 +259,12 @@ async function manejarDatos(request, env, ctx) {
       demo: false,
       stale: false,
     };
-    const respParaCliente = jsonResponse(salida, "no-cache, must-revalidate");
     if (cache) {
       const respParaGuardar = jsonResponse(salida, "public, max-age=" + CACHE_STORE_SECONDS);
-      ctx.waitUntil(cache.put(cacheKey, respParaGuardar));
+      const guardar = cache.put(cacheKey, respParaGuardar);
+      if (ctx && ctx.waitUntil) ctx.waitUntil(guardar); else await guardar;
     }
-    return respParaCliente;
+    return salida;
   }
   if (cache) {
     try {
@@ -262,13 +272,13 @@ async function manejarDatos(request, env, ctx) {
       if (cached) {
         const data = await cached.json();
         data.stale = true;
-        return jsonResponse(data, "no-cache, must-revalidate");
+        return data;
       }
     } catch (e) {
       // sigue al modo demo
     }
   }
-  const demo = {
+  return {
     symbol: simbolo,
     candles: generarDemo(cfg),
     fetched_at: Math.floor(Date.now() / 1000),
@@ -277,16 +287,233 @@ async function manejarDatos(request, env, ctx) {
     stale: false,
     diag: diag, // temporal: por qué fallaron Yahoo y Stooq (quitar cuando esté diagnosticado)
   };
-  return jsonResponse(demo, "no-cache, must-revalidate");
 }
+async function manejarDatos(request, env, ctx) {
+  const url = new URL(request.url);
+  let simbolo = (url.searchParams.get("symbol") || "EURUSD").toUpperCase().replace(/[^A-Z]/g, "");
+  if (!SIMBOLOS[simbolo]) simbolo = "EURUSD";
+  const datos = await obtenerDatosSimbolo(simbolo, env, ctx);
+  return jsonResponse(datos, "no-cache, must-revalidate");
+}
+
+// =============================================================
+// Alertas push: suscripción/desuscripción + barrido programado
+// =============================================================
+//
+// Guardamos las suscripciones Web Push en un KV namespace (binding
+// PUSH_SUBS). Mientras ese binding no exista todavía en la configuración
+// del Worker (hay que crear el namespace en el dashboard de Cloudflare y
+// añadirlo a wrangler.jsonc, ver comentario junto a "triggers" en ese
+// archivo), estas rutas responden con un error claro en vez de tirar el
+// Worker entero abajo — el resto del sitio (gráfico, zonas, setups...)
+// sigue funcionando igual aunque las alertas push aún no estén activadas.
+
+// Debe coincidir con instruments[].decimals/pip en lib/manifest.js — es la
+// misma tabla, copiada aquí porque el backend no carga ese archivo (es solo
+// para el navegador). Si se añade o cambia un instrumento en manifest.js,
+// hay que reflejarlo también aquí para que las alertas usen los mismos
+// decimales/tamaño de pip que ve el usuario en pantalla.
+const INSTRUMENTOS = {
+  EURUSD: { decimals: 5, pip: 0.0001 },
+  GBPUSD: { decimals: 5, pip: 0.0001 },
+  USDJPY: { decimals: 3, pip: 0.01 },
+  XAUUSD: { decimals: 2, pip: 0.1 },
+  BTCUSD: { decimals: 2, pip: 10 },
+};
+
+// Clave pública VAPID (RFC 8292) — no es secreta, se sirve también al
+// navegador (ver lib/manifest.js `vapidPublicKey`) para pushManager.subscribe().
+// La clave PRIVADA correspondiente se guarda como secreto del Worker
+// (env.VAPID_PRIVATE_KEY_JWK, un JSON de tipo JWK) y nunca se expone aquí.
+const VAPID_PUBLIC_KEY = "BMEERguBY5t2hfTHsgfBNAWu8tqcnTSz3qsoC5-_J77thziY1aiWNaH11eWCrNxfTQWQP4KRH8axEiynKRoNCiI";
+const VAPID_SUBJECT = "mailto:andygarcianchama@gmail.com";
+const COOLDOWN_NOTIF_SEGUNDOS = 6 * 3600; // no repetir el mismo aviso (misma zona) antes de 6h
+const UMBRAL_PIPS_POR_DEFECTO = 20;
+
+function vapidKeysDesdeEnv(env) {
+  if (!env.VAPID_PRIVATE_KEY_JWK) return null;
+  let jwk;
+  try { jwk = JSON.parse(env.VAPID_PRIVATE_KEY_JWK); } catch (e) { return null; }
+  return { publicKeyB64url: VAPID_PUBLIC_KEY, privateJwk: jwk, subject: VAPID_SUBJECT };
+}
+
+async function sha256Hex(texto) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function validarSuscripcion(body) {
+  return !!(
+    body &&
+    body.subscription &&
+    typeof body.subscription.endpoint === "string" &&
+    body.subscription.keys &&
+    typeof body.subscription.keys.p256dh === "string" &&
+    typeof body.subscription.keys.auth === "string" &&
+    Array.isArray(body.symbols) &&
+    body.symbols.length &&
+    body.symbols.every((s) => INSTRUMENTOS[s])
+  );
+}
+
+async function manejarSuscribir(request, env) {
+  if (!env.PUSH_SUBS) return jsonResponse({ error: "Las alertas push todavía no están configuradas en el servidor." }, "no-cache", 503);
+  let body;
+  try { body = await request.json(); } catch (e) { return jsonResponse({ error: "JSON inválido" }, "no-cache", 400); }
+  if (!validarSuscripcion(body)) return jsonResponse({ error: "Faltan datos de la suscripción o del símbolo" }, "no-cache", 400);
+  const hash = await sha256Hex(body.subscription.endpoint);
+  // Si ya existía una suscripción con este endpoint (p. ej. el usuario
+  // cambia qué símbolos quiere vigilar), primero borramos sus punteros
+  // sub:{symbol}:{hash} antiguos para no dejar entradas huérfanas.
+  const anteriorRaw = await env.PUSH_SUBS.get("subidx:" + hash);
+  if (anteriorRaw) {
+    try {
+      const anterior = JSON.parse(anteriorRaw);
+      await Promise.all((anterior.symbols || []).map((s) => env.PUSH_SUBS.delete("sub:" + s + ":" + hash)));
+    } catch (e) { /* ignorar, sobrescribimos igualmente */ }
+  }
+  const registro = {
+    subscription: body.subscription,
+    symbols: body.symbols,
+    thresholdPips: Number(body.thresholdPips) > 0 ? Number(body.thresholdPips) : UMBRAL_PIPS_POR_DEFECTO,
+    updatedAt: Date.now(),
+  };
+  await env.PUSH_SUBS.put("subidx:" + hash, JSON.stringify(registro));
+  await Promise.all(body.symbols.map((s) => env.PUSH_SUBS.put("sub:" + s + ":" + hash, "1")));
+  return jsonResponse({ ok: true });
+}
+
+async function manejarDesuscribir(request, env) {
+  if (!env.PUSH_SUBS) return jsonResponse({ error: "Las alertas push todavía no están configuradas en el servidor." }, "no-cache", 503);
+  let body;
+  try { body = await request.json(); } catch (e) { return jsonResponse({ error: "JSON inválido" }, "no-cache", 400); }
+  if (!body || typeof body.endpoint !== "string") return jsonResponse({ error: "Falta endpoint" }, "no-cache", 400);
+  const hash = await sha256Hex(body.endpoint);
+  const raw = await env.PUSH_SUBS.get("subidx:" + hash);
+  if (raw) {
+    try {
+      const registro = JSON.parse(raw);
+      await Promise.all((registro.symbols || []).map((s) => env.PUSH_SUBS.delete("sub:" + s + ":" + hash)));
+    } catch (e) { /* ignorar */ }
+  }
+  await env.PUSH_SUBS.delete("subidx:" + hash);
+  return jsonResponse({ ok: true });
+}
+
+/** Envía un aviso de prueba inmediato a la suscripción indicada, para que el usuario compruebe que las notificaciones le llegan de verdad antes de confiar en las alertas de precio. */
+async function manejarPushTest(request, env) {
+  if (!env.PUSH_SUBS) return jsonResponse({ error: "Las alertas push todavía no están configuradas en el servidor." }, "no-cache", 503);
+  const vapidKeys = vapidKeysDesdeEnv(env);
+  if (!vapidKeys) return jsonResponse({ error: "Falta configurar la clave privada VAPID en el servidor." }, "no-cache", 503);
+  let body;
+  try { body = await request.json(); } catch (e) { return jsonResponse({ error: "JSON inválido" }, "no-cache", 400); }
+  if (!body || !body.subscription) return jsonResponse({ error: "Falta la suscripción" }, "no-cache", 400);
+  try {
+    const resp = await enviarWebPush(body.subscription, {
+      title: "✅ Alertas activadas",
+      body: "Así se verá un aviso cuando el precio se acerque a una zona. Puedes desactivarlas cuando quieras.",
+      data: { url: "https://liquidez-diaria-2.andygarcianchama.workers.dev/" },
+    }, vapidKeys);
+    if (!resp.ok) return jsonResponse({ error: "El servicio de push respondió " + resp.status }, "no-cache", 502);
+    return jsonResponse({ ok: true });
+  } catch (e) {
+    return jsonResponse({ error: "No se pudo enviar el aviso de prueba: " + (e && e.message ? e.message : String(e)) }, "no-cache", 502);
+  }
+}
+
+/**
+ * Barrido periódico (Cron Trigger): para cada símbolo con suscripciones
+ * activas, calcula las zonas/setups en vivo (mismo motor que ve el usuario
+ * en pantalla, vía src/motor.js) y avisa por push a quien tenga el precio
+ * actual dentro o cerca (según su umbral en pips) de la zona de entrada de
+ * algún setup vigente. No repite el mismo aviso (misma zona) antes de
+ * COOLDOWN_NOTIF_SEGUNDOS, y da de baja automáticamente las suscripciones
+ * que el navegador ya descartó (respuesta 404/410 del servicio de push).
+ */
+async function ejecutarBarridoAlertas(env, ctx) {
+  if (!env.PUSH_SUBS) return;
+  const vapidKeys = vapidKeysDesdeEnv(env);
+  if (!vapidKeys) return; // sin clave privada configurada todavía, no hay nada que enviar
+
+  for (const simbolo of Object.keys(SIMBOLOS)) {
+    const lista = await env.PUSH_SUBS.list({ prefix: "sub:" + simbolo + ":" });
+    if (!lista.keys.length) continue; // nadie vigila este símbolo, no gastamos una petición de datos
+
+    let datos;
+    try { datos = await obtenerDatosSimbolo(simbolo, env, ctx); } catch (e) { continue; }
+    if (!datos || datos.demo || !Array.isArray(datos.candles)) continue; // no alertar con datos sintéticos
+
+    const instrumento = INSTRUMENTOS[simbolo];
+    let resultado;
+    try { resultado = calcularTodasLasZonas(datos.candles, instrumento); } catch (e) { continue; }
+    const precioActual = resultado.precioActual;
+    const setups = (resultado.zonas || []).filter((z) => z.setup && z.estado !== "mitigada");
+    if (precioActual == null || !setups.length) continue;
+
+    for (const key of lista.keys) {
+      const hash = key.name.slice(("sub:" + simbolo + ":").length);
+      const raw = await env.PUSH_SUBS.get("subidx:" + hash);
+      if (!raw) continue;
+      let registro;
+      try { registro = JSON.parse(raw); } catch (e) { continue; }
+      const umbral = (registro.thresholdPips || UMBRAL_PIPS_POR_DEFECTO) * instrumento.pip;
+
+      for (const z of setups) {
+        const s = z.setup;
+        const dentro = precioActual >= s.entradaBaja && precioActual <= s.entradaAlta;
+        const distancia = Math.min(Math.abs(precioActual - s.entradaBaja), Math.abs(precioActual - s.entradaAlta));
+        if (!dentro && distancia > umbral) continue;
+
+        const zonaKey = z.tf + "|" + z.tipo + "|" + z.direccion + "|" + z.t;
+        const notifKey = "notif:" + hash + ":" + simbolo + ":" + zonaKey;
+        if (await env.PUSH_SUBS.get(notifKey)) continue;
+
+        const dec = instrumento.decimals;
+        const payload = {
+          title: "⚡ " + simbolo + (dentro ? ": precio DENTRO de una zona de entrada" : ": precio cerca de una zona de entrada"),
+          body: (s.sesgo === "alcista" ? "Sesgo alcista" : "Sesgo bajista") + " · " + z.tfLabel +
+            (z.confluencia ? " · en confluencia" : "") + " — Entrada " + s.entradaBaja.toFixed(dec) + "–" + s.entradaAlta.toFixed(dec),
+          data: { url: "https://liquidez-diaria-2.andygarcianchama.workers.dev/?symbol=" + simbolo },
+        };
+        try {
+          const resp = await enviarWebPush(registro.subscription, payload, vapidKeys);
+          if (resp.status === 404 || resp.status === 410) {
+            // el navegador ya no reconoce esta suscripción: la damos de baja
+            await Promise.all((registro.symbols || []).map((sym) => env.PUSH_SUBS.delete("sub:" + sym + ":" + hash)));
+            await env.PUSH_SUBS.delete("subidx:" + hash);
+            break; // no seguir comprobando más zonas para una suscripción ya borrada
+          }
+          if (resp.ok) {
+            await env.PUSH_SUBS.put(notifKey, "1", { expirationTtl: COOLDOWN_NOTIF_SEGUNDOS });
+          }
+        } catch (e) {
+          // fallo transitorio de red: se reintentará en el próximo barrido
+        }
+      }
+    }
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === "/api/datos") {
       return manejarDatos(request, env, ctx);
     }
+    if (url.pathname === "/api/push/suscribir" && request.method === "POST") {
+      return manejarSuscribir(request, env);
+    }
+    if (url.pathname === "/api/push/desuscribir" && request.method === "POST") {
+      return manejarDesuscribir(request, env);
+    }
+    if (url.pathname === "/api/push/test" && request.method === "POST") {
+      return manejarPushTest(request, env);
+    }
     // Todo lo demás: sirve el sitio estático tal cual (index.html, main.js,
     // styles.css, assets/, etc.) usando el binding de assets de Cloudflare.
     return env.ASSETS.fetch(request);
+  },
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(ejecutarBarridoAlertas(env, ctx));
   },
 };

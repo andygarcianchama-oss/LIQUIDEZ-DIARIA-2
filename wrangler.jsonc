@@ -5,6 +5,26 @@
   "assets": {
     "directory": "./",
     "binding": "ASSETS"
+  },
+  // Dispara scheduled() en src/index.js cada 5 minutos para el barrido de
+  // alertas push (ejecutarBarridoAlertas). Es seguro tenerlo activo aunque
+  // el KV namespace de abajo todavía no exista: la función comprueba
+  // `env.PUSH_SUBS` y no hace nada si el binding no está configurado.
+  "triggers": {
+    "crons": ["*/5 * * * *"]
   }
+  // PENDIENTE (requiere el dashboard de Cloudflare, no se puede hacer solo
+  // con archivos): crear un KV namespace para guardar las suscripciones
+  // push y añadir aquí su binding, algo como:
+  //   "kv_namespaces": [
+  //     { "binding": "PUSH_SUBS", "id": "<id del namespace creado en el dashboard>" }
+  //   ]
+  // y configurar el secreto VAPID_PRIVATE_KEY_JWK (Configuración → Variables
+  // y secretos) con la clave privada VAPID correspondiente a la clave
+  // pública ya incluida en src/index.js (VAPID_PUBLIC_KEY) y en
+  // lib/manifest.js (vapidPublicKey). Hasta que eso esté hecho, el panel
+  // "Avisos de precio" de la web se ve pero responde con un aviso de que
+  // el servidor aún no lo tiene configurado — el resto del sitio no se ve
+  // afectado en absoluto.
 }
 

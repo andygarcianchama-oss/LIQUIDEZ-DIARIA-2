@@ -23,7 +23,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
 
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=20260820e">
+<link rel="stylesheet" href="styles.css?v=20260820f">
 
 <script type="application/ld+json">
 {
@@ -169,6 +169,36 @@
         <div class="setups-grid" data-setups></div>
       </div>
 
+      <div class="alertas-panel" data-alertas-panel aria-live="polite">
+        <div class="alertas-panel__top">
+          <h2>🔔 Avisos de precio</h2>
+          <span class="alertas-panel__estado" data-alertas-estado>Sin activar</span>
+        </div>
+        <p class="alertas-nota">Recibe una notificación en este dispositivo cuando el precio entre o se acerque a la zona de entrada de alguno de los setups de arriba (incluidos los que están en confluencia). Funciona aunque tengas la pestaña o el navegador cerrados; se revisa cada pocos minutos.</p>
+
+        <div class="alertas-panel__body" data-alertas-body>
+          <fieldset class="alertas-instrumentos" data-alertas-instrumentos>
+            <legend>¿Qué instrumentos quieres vigilar?</legend>
+          </fieldset>
+
+          <label class="alertas-umbral">
+            Avisarme cuando el precio esté a menos de
+            <input type="number" class="alertas-umbral__input" data-alertas-umbral min="1" max="1000" step="1" value="20">
+            pips de la zona de entrada
+          </label>
+
+          <div class="alertas-acciones">
+            <button type="button" class="btn btn--primario" data-alertas-activar>Activar avisos</button>
+            <button type="button" class="btn btn--ghost" data-alertas-test hidden>Enviar aviso de prueba</button>
+            <button type="button" class="btn btn--ghost" data-alertas-desactivar hidden>Desactivar avisos</button>
+          </div>
+
+          <p class="alertas-mensaje" data-alertas-mensaje hidden></p>
+        </div>
+
+        <p class="alertas-no-soportado" data-alertas-no-soportado hidden>Tu navegador no admite notificaciones push, así que esta función no está disponible aquí. Prueba con Chrome, Firefox o Edge en un ordenador o Android; en iPhone/iPad hace falta añadir antes esta web a la pantalla de inicio (Safari → Compartir → "Añadir a pantalla de inicio").</p>
+      </div>
+
       <div class="zonas-panel">
         <h2>Zonas de liquidez (Order Blocks y FVG recientes, 15m / 1H / 4H)</h2>
         <p class="zonas-intro">Los bloques de órdenes (Order Blocks) y los huecos de valor razonable (Fair Value Gaps, FVG) detectados en 15 minutos, 1 hora y 4 horas: zonas donde el precio podría reaccionar si vuelve a visitarlas, ya recortadas a un máximo de 60 pips, priorizando conservar la zona OTE (la parte más óptima según Fibonacci), para que sean prácticas. "Sin testear" es la más fresca; en un Order Block, "Breaker Block" significa que el precio ya lo atravesó del todo (puede invertir su polaridad); en un FVG, "Rellenado" significa que el precio ya cerró el hueco por completo. Una etiqueta "Confluencia" indica que varias temporalidades señalan la misma zona, o que un Order Block y un FVG coinciden en la misma zona.</p>
@@ -305,7 +335,8 @@
   <div class="ad-slot ad-slot--toast"><span>ANUNCIO</span></div>
 </aside>
 
-<script defer src="lib/manifest.js?v=20260820e"></script>
-<script defer src="main.js?v=20260820e"></script>
+<script defer src="lib/manifest.js?v=20260820f"></script>
+<script defer src="main.js?v=20260820f"></script>
+<script defer src="alertas.js?v=20260820f"></script>
 </body>
 </html>
