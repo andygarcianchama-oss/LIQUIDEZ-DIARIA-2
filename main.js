@@ -357,6 +357,76 @@
     );
   }
 
+  // ---------------------------------------------------------------------
+  // Gauge de "Momentum del día" — calculado en el navegador a partir de la
+  // propia estructura/rango reciente del instrumento que se está mirando.
+  // No es un índice de sentimiento de mercado agregado ni de terceros: es
+  // una lectura rápida de dónde cotiza el precio dentro de su rango
+  // reciente y hacia qué lado se ha movido, con las mismas velas que ya
+  // usa el resto de la herramienta.
+  // ---------------------------------------------------------------------
+  function calcularMomentum(velas, instrumento) {
+    if (!velas || velas.length < 20) return null;
+    var ventana = velas.length > 96 ? velas.slice(velas.length - 96) : velas.slice();
+    if (ventana.length < 20) return null;
+
+    var maxH = Math.max.apply(null, ventana.map(function (v) { return v.h; }));
+    var minL = Math.min.apply(null, ventana.map(function (v) { return v.l; }));
+    var rango = maxH - minL;
+    var precioActual = ventana[ventana.length - 1].c;
+    // Posición del precio actual dentro del rango reciente (0 = en el mínimo, 1 = en el máximo)
+    var posicion = rango > 0 ? (precioActual - minL) / rango : 0.5;
+
+    // Tendencia: compara el cierre actual con el cierre de la primera mitad de la ventana
+    var idxInicio = Math.floor(ventana.length / 2);
+    var precioInicio = ventana[idxInicio].c;
+    var cambioAbs = precioActual - precioInicio;
+    var refMovimiento = (instrumento.pip || 0.0001) * 300; // referencia de "movimiento grande" para este instrumento
+    var tendenciaNormalizada = refMovimiento > 0 ? Math.max(-1, Math.min(1, cambioAbs / refMovimiento)) : 0;
+
+    // 60% posición en el rango reciente + 40% tendencia reciente, todo reescalado a 0–100
+    var score = (posicion * 0.6 + ((tendenciaNormalizada + 1) / 2) * 0.4) * 100;
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
+
+  function etiquetaMomentum(score) {
+    if (score == null) return { texto: "Sin datos suficientes", clase: "neutral" };
+    if (score >= 80) return { texto: "Codicia extrema", clase: "codicia-extrema" };
+    if (score >= 60) return { texto: "Codicia", clase: "codicia" };
+    if (score >= 40) return { texto: "Neutral", clase: "neutral" };
+    if (score >= 20) return { texto: "Miedo", clase: "miedo" };
+    return { texto: "Miedo extremo", clase: "miedo-extremo" };
+  }
+
+  function pintarGauge(score) {
+    var panel = $("[data-gauge-panel]");
+    if (!panel) return;
+    var etiqueta = etiquetaMomentum(score);
+    var badge = $("[data-gauge-badge]");
+    if (badge) {
+      badge.textContent = etiqueta.texto;
+      badge.setAttribute("data-gauge-clase", etiqueta.clase);
+    }
+    var valorEl = $("[data-gauge-valor]");
+    var arc = $("[data-gauge-arc]");
+    var needle = $("[data-gauge-needle]");
+    if (score == null) {
+      if (valorEl) valorEl.textContent = "—";
+      return;
+    }
+    if (valorEl) valorEl.textContent = String(score);
+    if (arc) {
+      var longitudTotal = 282.74; // perímetro aproximado del arco (PI * radio 90)
+      var longitudLlena = longitudTotal * (score / 100);
+      arc.setAttribute("stroke-dasharray", longitudLlena.toFixed(2) + " " + longitudTotal.toFixed(2));
+      arc.style.stroke = score >= 60 ? "var(--up)" : (score <= 40 ? "var(--down)" : "var(--accent)");
+    }
+    if (needle) {
+      var angulo = -90 + (score / 100) * 180; // -90° (izquierda/miedo) a +90° (derecha/codicia)
+      needle.setAttribute("transform", "rotate(" + angulo.toFixed(1) + ")");
+    }
+  }
+
   function construirRelato(p) {
     var dec = p.dec;
     var pdh = fmt(p.PDH, dec), pdl = fmt(p.PDL, dec);
@@ -514,6 +584,11 @@
       var zonas = calcularZonasLiquidez(analisis.velasOrdenadas, instrumento, 4);
       pintarZonasLiquidez(instrumento, zonas);
     }, "calcularZonasLiquidez");
+
+    safe(function () {
+      var score = calcularMomentum(analisis.velasOrdenadas, instrumento);
+      pintarGauge(score);
+    }, "calcularMomentum");
 
     safe(function () { cargarGraficoTV(instrumento); }, "cargarGraficoTV");
     safe(function () { dispararPopupSiProcede(); }, "popup");

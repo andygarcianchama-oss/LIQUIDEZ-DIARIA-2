@@ -23,7 +23,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
 
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=20260819c">
+<link rel="stylesheet" href="styles.css?v=20260820a">
 
 <script type="application/ld+json">
 {
@@ -108,6 +108,23 @@
       </div>
 
       <div class="chips-estado" data-badges></div>
+
+      <div class="gauge-panel" data-gauge-panel aria-live="polite">
+        <div class="gauge-panel__top">
+          <h2>Momentum del día</h2>
+          <span class="gauge-panel__badge" data-gauge-badge>Calculando…</span>
+        </div>
+        <div class="gauge-wrap">
+          <svg class="gauge-svg" viewBox="0 0 200 112" aria-hidden="true">
+            <path d="M10,100 A90,90 0 0 1 190,100" fill="none" stroke="var(--border)" stroke-width="14" stroke-linecap="round"/>
+            <path data-gauge-arc d="M10,100 A90,90 0 0 1 190,100" fill="none" stroke="var(--accent)" stroke-width="14" stroke-linecap="round" stroke-dasharray="0 282.74"/>
+            <line data-gauge-needle x1="100" y1="100" x2="100" y2="22" stroke="var(--text)" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="100" cy="100" r="6" fill="var(--text)"/>
+          </svg>
+          <div class="gauge-value" data-gauge-valor>—</div>
+        </div>
+        <p class="gauge-nota">Estimado a partir de la estructura y el momentum reciente del precio de este instrumento — no es un índice de sentimiento de mercado agregado ni de terceros.</p>
+      </div>
 
       <h2 class="sesiones-titulo">Sesiones del <span data-fecha-ayer>día anterior</span> (hora de España)</h2>
       <div class="sesiones-grid" data-sesiones>
@@ -278,7 +295,7 @@
   <div class="ad-slot ad-slot--toast"><span>ANUNCIO</span></div>
 </aside>
 
-<script defer src="lib/manifest.js?v=20260819c"></script>
-<script defer src="main.js?v=20260819c"></script>
+<script defer src="lib/manifest.js?v=20260820a"></script>
+<script defer src="main.js?v=20260820a"></script>
 </body>
 </html>

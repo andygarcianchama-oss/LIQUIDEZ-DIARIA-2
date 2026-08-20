@@ -237,6 +237,36 @@ h1, h2, h3 { text-wrap: balance; line-height: 1.15; letter-spacing: -0.01em; fon
 .zona-liquidez__fecha { font-size: .76rem; color: var(--text-muted); }
 
 /* =============================================================
+   6quinquies. Gauge de momentum del día (propio, no de terceros)
+   ============================================================= */
+.gauge-panel {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 1.1rem 1.2rem; margin-bottom: 1.25rem;
+}
+.gauge-panel__top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem; margin-bottom: .5rem; }
+.gauge-panel__top h2 { font-size: 1rem; }
+.gauge-panel__badge {
+  font-size: .8rem; font-weight: 700; padding: .35rem .75rem; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border); color: var(--text-muted);
+}
+.gauge-panel__badge[data-gauge-clase="codicia-extrema"],
+.gauge-panel__badge[data-gauge-clase="codicia"] { background: #e6f6ee; border-color: #a9e0c3; color: var(--up); }
+.gauge-panel__badge[data-gauge-clase="miedo-extremo"],
+.gauge-panel__badge[data-gauge-clase="miedo"] { background: #fdeceb; border-color: #f3b3ae; color: var(--down); }
+@media (prefers-color-scheme: dark) {
+  .gauge-panel__badge[data-gauge-clase="codicia-extrema"],
+  .gauge-panel__badge[data-gauge-clase="codicia"] { background: #0f2e1f; color: #6fe3a6; border-color: #1c5c3c; }
+  .gauge-panel__badge[data-gauge-clase="miedo-extremo"],
+  .gauge-panel__badge[data-gauge-clase="miedo"] { background: #3a1613; color: #ff9a92; border-color: #6b2924; }
+}
+.gauge-wrap { display: flex; flex-direction: column; align-items: center; gap: .25rem; padding-block: .25rem .5rem; }
+.gauge-svg { width: 100%; max-width: 260px; height: auto; }
+.gauge-svg [data-gauge-arc] { transition: stroke-dasharray .5s var(--ease-out), stroke .5s var(--ease-out); }
+.gauge-svg [data-gauge-needle] { transform-origin: 100px 100px; transition: transform .5s var(--ease-out); }
+.gauge-value { font-family: var(--mono); font-size: 1.4rem; font-weight: 700; margin-top: -1.6rem; }
+.gauge-nota { font-size: .8rem; color: var(--text-muted); text-align: center; max-width: 480px; margin-inline: auto; }
+
+/* =============================================================
    6ter. Conceptos técnicos y noticias
    ============================================================= */
 .seccion-intro { color: var(--text-muted); margin-bottom: 1.25rem; max-width: 760px; }
