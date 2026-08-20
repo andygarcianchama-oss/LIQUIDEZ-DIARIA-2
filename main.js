@@ -258,14 +258,18 @@
     return orden.map(function (k) { return buckets[k]; });
   }
 
-  // Marca como "en confluencia" las zonas de distinta temporalidad, mismo
-  // sesgo, cuyo rango de precio se solapa: varias temporalidades señalando
-  // la misma zona refuerza la idea según la metodología ICT/SMC.
+  // Marca como "en confluencia" las zonas cuyo rango de precio se solapa y
+  // comparten sesgo, siempre que no sean exactamente la misma zona: distinta
+  // temporalidad con el mismo tipo (varias temporalidades señalando el mismo
+  // Order Block/FVG) o la misma temporalidad con distinto tipo (un Order
+  // Block y un FVG coincidiendo en la misma zona) cuentan como confluencia
+  // según la metodología ICT/SMC.
   function detectarConfluencias(zonas) {
     for (var i = 0; i < zonas.length; i++) {
       for (var j = i + 1; j < zonas.length; j++) {
         var a = zonas[i], b = zonas[j];
-        if (a.tf === b.tf || a.direccion !== b.direccion) continue;
+        if (a.tf === b.tf && a.tipo === b.tipo) continue;
+        if (a.direccion !== b.direccion) continue;
         var solapa = a.ob.bajo <= b.ob.alto && b.ob.bajo <= a.ob.alto;
         if (solapa) { a.confluencia = true; b.confluencia = true; }
       }
@@ -273,11 +277,24 @@
     return zonas;
   }
 
+  // Recorta un rango [bajo, alto] para que su anchura no supere anchoMax.
+  // ancla = "alta"  -> mantiene fijo el extremo alto y sube el bajo
+  // ancla = "baja"  -> mantiene fijo el extremo bajo y baja el alto
+  // ancla = "centro" -> recorta simétricamente desde el centro del rango
+  function limitarAncho(bajo, alto, anchoMax, ancla) {
+    if (alto <= bajo || (alto - bajo) <= anchoMax) return { bajo: bajo, alto: alto };
+    if (ancla === "alta") return { bajo: alto - anchoMax, alto: alto };
+    if (ancla === "baja") return { bajo: bajo, alto: bajo + anchoMax };
+    var centro = (bajo + alto) / 2;
+    return { bajo: centro - anchoMax / 2, alto: centro + anchoMax / 2 };
+  }
+
   // Calcula entrada/OTE/SL/TP para UN Order Block concreto (misma lógica que
   // antes usaba una sola vez para la última señal, ahora reutilizable para
   // todas las zonas detectadas en todas las temporalidades).
   function calcularSetupDesdeOB(velas, instrumento, PDH, PDL, rotura, ob) {
     var buffer = instrumento.pip * 10;
+    var maxAncho = instrumento.pip * 150;
     var dec = instrumento.decimals;
 
     if (rotura.direccion === "alcista") {
@@ -289,8 +306,13 @@
       if (rango <= buffer) return null;
       var fibo618 = puntoAlto - rango * 0.618;
       var fibo79 = puntoAlto - rango * 0.79;
-      var entradaBaja = Math.min(fibo79, ob.bajo);
-      var entradaAlta = Math.max(fibo618, ob.alto);
+      var entradaBajaCruda = Math.min(fibo79, ob.bajo);
+      var entradaAltaCruda = Math.max(fibo618, ob.alto);
+      // Se ancla en el extremo alto (el más cercano al precio de mercado tras
+      // la ruptura) para que, al recortar, la zona siga siendo alcanzable.
+      var entradaRec = limitarAncho(entradaBajaCruda, entradaAltaCruda, maxAncho, "alta");
+      var entradaBaja = entradaRec.bajo, entradaAlta = entradaRec.alto;
+      var oteRec = limitarAncho(Math.min(fibo618, fibo79), Math.max(fibo618, fibo79), maxAncho, "alta");
       var stopLoss = Math.min(puntoBajo, ob.bajo) - buffer;
       var candA = (PDH != null && PDH > puntoAlto) ? PDH : puntoAlto + rango * 0.272;
       var candB = puntoAlto + rango * 0.618;
@@ -302,7 +324,7 @@
       return {
         sesgo: "alcista", dec: dec,
         entradaBaja: entradaBaja, entradaAlta: entradaAlta,
-        oteBaja: Math.min(fibo618, fibo79), oteAlta: Math.max(fibo618, fibo79),
+        oteBaja: oteRec.bajo, oteAlta: oteRec.alto,
         stopLoss: stopLoss, tp1: tp1, tp2: tp2,
         rr: riesgo > 0 ? (beneficio / riesgo) : null,
         ob: ob
@@ -316,8 +338,13 @@
       if (rango2 <= buffer) return null;
       var fibo618b = puntoBajo2 + rango2 * 0.618;
       var fibo79b = puntoBajo2 + rango2 * 0.79;
-      var entradaBaja2 = Math.min(fibo618b, ob.bajo);
-      var entradaAlta2 = Math.max(fibo79b, ob.alto);
+      var entradaBajaCruda2 = Math.min(fibo618b, ob.bajo);
+      var entradaAltaCruda2 = Math.max(fibo79b, ob.alto);
+      // Se ancla en el extremo bajo (el más cercano al precio de mercado tras
+      // la ruptura bajista) para que la zona recortada siga siendo alcanzable.
+      var entradaRec2 = limitarAncho(entradaBajaCruda2, entradaAltaCruda2, maxAncho, "baja");
+      var entradaBaja2 = entradaRec2.bajo, entradaAlta2 = entradaRec2.alto;
+      var oteRec2 = limitarAncho(Math.min(fibo618b, fibo79b), Math.max(fibo618b, fibo79b), maxAncho, "baja");
       var stopLoss2 = Math.max(puntoAlto2, ob.alto) + buffer;
       var candA2 = (PDL != null && PDL < puntoBajo2) ? PDL : puntoBajo2 - rango2 * 0.272;
       var candB2 = puntoBajo2 - rango2 * 0.618;
@@ -329,7 +356,7 @@
       return {
         sesgo: "bajista", dec: dec,
         entradaBaja: entradaBaja2, entradaAlta: entradaAlta2,
-        oteBaja: Math.min(fibo618b, fibo79b), oteAlta: Math.max(fibo618b, fibo79b),
+        oteBaja: oteRec2.bajo, oteAlta: oteRec2.alto,
         stopLoss: stopLoss2, tp1: tp1b, tp2: tp2b,
         rr: riesgo2 > 0 ? (beneficio2 / riesgo2) : null,
         ob: ob
@@ -343,6 +370,7 @@
   function analizarZonasTF(velas, instrumento, PDH, PDL, tfId, tfLabel, maxZonas) {
     maxZonas = maxZonas || 20;
     if (!velas || velas.length < 40) return [];
+    var maxAncho = instrumento.pip * 150;
     var swings = detectarSwings(velas, 3);
     var roturas = detectarTodasRoturas(velas, swings);
     var zonas = [];
@@ -355,13 +383,79 @@
       var estado = estadoOB(velas, ob, rotura);
       var setup = null;
       safe(function () { setup = calcularSetupDesdeOB(velas, instrumento, PDH, PDL, rotura, ob); }, "calcularSetupDesdeOB");
+      var rangoOB = limitarAncho(ob.bajo, ob.alto, maxAncho, "centro");
+      var obMostrado = { idx: ob.idx, bajo: rangoOB.bajo, alto: rangoOB.alto };
       zonas.push({
         tf: tfId, tfLabel: tfLabel,
+        tipo: "ob",
         direccion: rotura.direccion,
-        ob: ob,
+        ob: obMostrado,
         estado: estado,
         t: velas[ob.idx].t,
         setup: setup,
+        confluencia: false
+      });
+    }
+    return zonas;
+  }
+
+  // Detecta huecos de valor razonable (Fair Value Gap): un desequilibrio de
+  // tres velas donde la mecha de la vela 1 y la de la vela 3 no llegan a
+  // solaparse, dejando un hueco que el precio no ha negociado todavía.
+  function detectarFVG(velas) {
+    var huecos = [];
+    if (!velas || velas.length < 3) return huecos;
+    for (var i = 1; i < velas.length - 1; i++) {
+      var previa = velas[i - 1], siguiente = velas[i + 1];
+      if (siguiente.l > previa.h) {
+        huecos.push({ idx: i, direccion: "alcista", bajo: previa.h, alto: siguiente.l });
+      } else if (siguiente.h < previa.l) {
+        huecos.push({ idx: i, direccion: "bajista", bajo: siguiente.h, alto: previa.l });
+      }
+    }
+    return huecos;
+  }
+
+  // Clasifica el estado de un FVG según lo ocurrido tras su formación:
+  // "sin testear" si el precio no ha vuelto a entrar en el hueco, "testeada"
+  // si ha entrado sin cerrar del todo al otro lado, y "mitigada" (rellenado)
+  // si el precio ha cerrado una vela completamente al otro lado del hueco.
+  function estadoFVG(velas, fvg) {
+    var estado = "sin testear";
+    for (var i = fvg.idx + 2; i < velas.length; i++) {
+      var v = velas[i];
+      if (fvg.direccion === "alcista") {
+        if (v.c <= fvg.bajo) return "mitigada";
+        if (v.l <= fvg.alto) estado = "testeada";
+      } else {
+        if (v.c >= fvg.alto) return "mitigada";
+        if (v.h >= fvg.bajo) estado = "testeada";
+      }
+    }
+    return estado;
+  }
+
+  // Igual que analizarZonasTF pero para huecos de valor razonable (FVG). Los
+  // FVG no generan un setup de entrada propio (setup: null): son zonas de
+  // referencia/confluencia, no señales de trading por sí solas.
+  function analizarFVGTF(velas, instrumento, tfId, tfLabel, maxZonas) {
+    maxZonas = maxZonas || 20;
+    if (!velas || velas.length < 10) return [];
+    var maxAncho = instrumento.pip * 150;
+    var huecos = detectarFVG(velas);
+    var zonas = [];
+    for (var i = huecos.length - 1; i >= 0 && zonas.length < maxZonas; i--) {
+      var g = huecos[i];
+      var estado = estadoFVG(velas, g);
+      var rango = limitarAncho(g.bajo, g.alto, maxAncho, "centro");
+      zonas.push({
+        tf: tfId, tfLabel: tfLabel,
+        tipo: "fvg",
+        direccion: g.direccion,
+        ob: { idx: g.idx, bajo: rango.bajo, alto: rango.alto },
+        estado: estado,
+        t: velas[g.idx].t,
+        setup: null,
         confluencia: false
       });
     }
@@ -379,22 +473,30 @@
     }
     if (vacio) vacio.hidden = true;
     var dec = instrumento.decimals;
-    // "Mitigada" se muestra como Breaker Block: una zona que el precio ya
-    // atravesó del todo y que, según ICT/SMC, puede invertir su polaridad
-    // (de soporte a resistencia o viceversa) para futuras reacciones.
-    var estadoTexto = { "sin testear": "Sin testear", "testeada": "Testeada", "mitigada": "Breaker Block" };
+    // "Mitigada" en un Order Block se muestra como Breaker Block: una zona
+    // que el precio ya atravesó del todo y que, según ICT/SMC, puede invertir
+    // su polaridad (de soporte a resistencia o viceversa). En un FVG,
+    // "mitigada" significa que el hueco quedó "rellenado" por el precio.
+    var estadoTextoOB = { "sin testear": "Sin testear", "testeada": "Testeada", "mitigada": "Breaker Block" };
+    var estadoTextoFVG = { "sin testear": "Sin testear", "testeada": "Testeada", "mitigada": "Rellenado" };
     var ordenadas = zonas.slice().sort(function (a, b) { return b.t - a.t; });
     cont.innerHTML = ordenadas.map(function (z) {
+      var esFVG = z.tipo === "fvg";
       var fecha = new Date(z.t * 1000).toLocaleString("es-ES", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" });
-      var claseEstado = z.estado === "mitigada" ? "breaker" : z.estado.replace(" ", "-");
-      return '<div class="zona-liquidez zona-liquidez--' + z.direccion + ' zona-liquidez--' + claseEstado + '">' +
+      var claseEstado = z.estado === "mitigada" ? (esFVG ? "rellenado" : "breaker") : z.estado.replace(" ", "-");
+      var claseTipo = esFVG ? " zona-liquidez--fvg" : "";
+      var etiquetaTipo = esFVG
+        ? (z.direccion === "alcista" ? "FVG alcista" : "FVG bajista")
+        : (z.direccion === "alcista" ? "Bloque de órdenes alcista" : "Bloque de órdenes bajista");
+      var estadoTexto = esFVG ? estadoTextoFVG : estadoTextoOB;
+      return '<div class="zona-liquidez zona-liquidez--' + z.direccion + ' zona-liquidez--' + claseEstado + claseTipo + '">' +
         '<div class="zona-liquidez__top">' +
         '<span class="zona-liquidez__tf">' + escHTML(z.tfLabel) + '</span>' +
-        '<span class="zona-liquidez__tipo">' + (z.direccion === "alcista" ? "Bloque de órdenes alcista" : "Bloque de órdenes bajista") + '</span>' +
+        '<span class="zona-liquidez__tipo">' + etiquetaTipo + '</span>' +
         '<span class="zona-liquidez__estado">' + estadoTexto[z.estado] + '</span>' +
         '</div>' +
         '<span class="zona-liquidez__rango">' + fmt(z.ob.bajo, dec) + ' – ' + fmt(z.ob.alto, dec) + '</span>' +
-        (z.confluencia ? '<span class="chip chip--confluencia">Confluencia multi-temporalidad</span>' : '') +
+        (z.confluencia ? '<span class="chip chip--confluencia">Confluencia</span>' : '') +
         '<span class="zona-liquidez__fecha">Formado ' + fecha + ' (hora de España)</span>' +
         '</div>';
     }).join("");
@@ -665,7 +767,10 @@
       var zonas15 = analizarZonasTF(velas15, instrumento, analisis.PDH, analisis.PDL, "15m", "15m", 20);
       var zonas1h = analizarZonasTF(velas1h, instrumento, analisis.PDH, analisis.PDL, "1h", "1H", 20);
       var zonas4h = analizarZonasTF(velas4h, instrumento, analisis.PDH, analisis.PDL, "4h", "4H", 20);
-      var todasZonas = detectarConfluencias(zonas15.concat(zonas1h, zonas4h));
+      var fvg15 = analizarFVGTF(velas15, instrumento, "15m", "15m", 20);
+      var fvg1h = analizarFVGTF(velas1h, instrumento, "1h", "1H", 20);
+      var fvg4h = analizarFVGTF(velas4h, instrumento, "4h", "4H", 20);
+      var todasZonas = detectarConfluencias(zonas15.concat(zonas1h, zonas4h, fvg15, fvg1h, fvg4h));
       pintarZonasLiquidez(instrumento, todasZonas);
       pintarSetups(instrumento, todasZonas);
     }, "analizarZonasTF");
