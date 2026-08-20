@@ -125,6 +125,7 @@ h1, h2, h3 { text-wrap: balance; line-height: 1.15; letter-spacing: -0.01em; fon
 }
 .error-aviso p { margin: 0; }
 .error-aviso .btn { flex-shrink: 0; }
+.error-aviso[hidden] { display: none; }
 @media (prefers-color-scheme: dark) { .error-aviso { background: #3a1613; border-color: #6b2924; color: #ff9a92; } }
 
 .noscript-aviso {
