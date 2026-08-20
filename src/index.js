@@ -14,7 +14,14 @@ const SIMBOLOS = {
   GBPUSD: { td: "GBP/USD", yahoo: "GBPUSD=X", stooq: "gbpusd", demoBase: 1.3535, demoRango: 0.0085 },
   USDJPY: { td: "USD/JPY", yahoo: "USDJPY=X", stooq: "usdjpy", demoBase: 157.35, demoRango: 0.95 },
   XAUUSD: { td: "XAU/USD", yahoo: "XAUUSD=X", stooq: "xauusd", demoBase: 4358.0, demoRango: 33.0 },
+  BTCUSD: { td: "BTC/USD", yahoo: "BTC-USD", stooq: "btcusd", demoBase: 68000, demoRango: 2500 },
 };
+// Nº de velas de 15 min que se piden a las fuentes de datos. Se pide un
+// histórico amplio (no solo las últimas horas) porque el motor de análisis
+// agrega estas velas de 15 min en velas de 1H y 4H en el navegador (ver
+// resamplearVelas() en main.js) para poder detectar zonas y señales en
+// varias temporalidades sin tener que hacer llamadas adicionales a la API.
+const VELAS_SOLICITADAS = 1000;
 const CACHE_TTL = 900; // 15 minutos
 const CACHE_STORE_SECONDS = 21600; // 6h de margen en la Cache API como último recurso
 function jsonResponse(data, cacheControl) {
@@ -42,7 +49,7 @@ async function traerTwelveData(tdSimbolo, apiKey, diag) {
   const url =
     "https://api.twelvedata.com/time_series?symbol=" +
     encodeURIComponent(tdSimbolo) +
-    "&interval=15min&outputsize=200&timezone=UTC&apikey=" +
+    "&interval=15min&outputsize=" + VELAS_SOLICITADAS + "&timezone=UTC&apikey=" +
     encodeURIComponent(apiKey);
   try {
     const res = await fetch(url);
@@ -83,7 +90,7 @@ async function traerYahoo(yahooSimbolo, diag) {
   const url =
     "https://query1.finance.yahoo.com/v8/finance/chart/" +
     encodeURIComponent(yahooSimbolo) +
-    "?interval=15m&range=5d";
+    "?interval=15m&range=60d";
   try {
     const res = await fetch(url, {
       headers: {
@@ -179,7 +186,7 @@ function generarDemo(cfg) {
     seed = (seed * 9301 + 49297) % 233280;
     return seed / 233280;
   }
-  for (let i = 191; i >= 0; i--) {
+  for (let i = VELAS_SOLICITADAS - 1; i >= 0; i--) {
     const t = ahora - i * 900;
     const ruido = (rand() * 2 - 1) * (cfg.demoRango / 24);
     const tendencia = Math.sin(i / 18) * (cfg.demoRango / 3);
