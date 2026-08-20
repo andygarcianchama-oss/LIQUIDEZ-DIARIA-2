@@ -9,17 +9,14 @@
 // abajo (idéntico en lógica a functions/api/datos.js, la versión pensada
 // para Cloudflare Pages clásico — se mantiene también por si el proyecto se
 // despliega alguna vez ahí en vez de en Workers).
-
 const SIMBOLOS = {
-  EURUSD: { yahoo: "EURUSD=X", stooq: "eurusd", demoBase: 1.156, demoRango: 0.0065 },
-  GBPUSD: { yahoo: "GBPUSD=X", stooq: "gbpusd", demoBase: 1.3535, demoRango: 0.0085 },
-  USDJPY: { yahoo: "USDJPY=X", stooq: "usdjpy", demoBase: 157.35, demoRango: 0.95 },
-  XAUUSD: { yahoo: "XAUUSD=X", stooq: "xauusd", demoBase: 4358.0, demoRango: 33.0 },
+  EURUSD: { td: "EUR/USD", yahoo: "EURUSD=X", stooq: "eurusd", demoBase: 1.156, demoRango: 0.0065 },
+  GBPUSD: { td: "GBP/USD", yahoo: "GBPUSD=X", stooq: "gbpusd", demoBase: 1.3535, demoRango: 0.0085 },
+  USDJPY: { td: "USD/JPY", yahoo: "USDJPY=X", stooq: "usdjpy", demoBase: 157.35, demoRango: 0.95 },
+  XAUUSD: { td: "XAU/USD", yahoo: "XAUUSD=X", stooq: "xauusd", demoBase: 4358.0, demoRango: 33.0 },
 };
-
 const CACHE_TTL = 900; // 15 minutos
 const CACHE_STORE_SECONDS = 21600; // 6h de margen en la Cache API como último recurso
-
 function jsonResponse(data, cacheControl) {
   return new Response(JSON.stringify(data), {
     headers: {
@@ -28,7 +25,60 @@ function jsonResponse(data, cacheControl) {
     },
   });
 }
-
+/**
+ * Fuente principal: Twelve Data (twelvedata.com), plan gratuito.
+ * A diferencia de Yahoo/Stooq, esta API está pensada para ser llamada desde
+ * servidores (no navegadores), así que no bloquea las IPs de Cloudflare.
+ * Requiere una clave gratuita guardada como variable de entorno
+ * TWELVEDATA_API_KEY en el Worker (Configuración → Variables y secretos).
+ * Si no hay clave configurada, esta función falla en silencio y el código
+ * sigue probando las demás fuentes.
+ */
+async function traerTwelveData(tdSimbolo, apiKey, diag) {
+  if (!apiKey) {
+    diag.twelvedata = "sin API key configurada (TWELVEDATA_API_KEY)";
+    return null;
+  }
+  const url =
+    "https://api.twelvedata.com/time_series?symbol=" +
+    encodeURIComponent(tdSimbolo) +
+    "&interval=15min&outputsize=200&timezone=UTC&apikey=" +
+    encodeURIComponent(apiKey);
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      diag.twelvedata = "HTTP " + res.status;
+      return null;
+    }
+    const json = await res.json();
+    if (!json || json.status === "error" || !Array.isArray(json.values)) {
+      diag.twelvedata =
+        "error de la API: " + (json && json.message ? json.message : JSON.stringify(json).slice(0, 200));
+      return null;
+    }
+    const candles = [];
+    for (const v of json.values) {
+      const t = Math.floor(Date.parse(v.datetime.replace(" ", "T") + "Z") / 1000);
+      if (!t || Number.isNaN(t)) continue;
+      candles.push({
+        t,
+        o: parseFloat(v.open) || 0,
+        h: parseFloat(v.high) || 0,
+        l: parseFloat(v.low) || 0,
+        c: parseFloat(v.close) || 0,
+      });
+    }
+    candles.sort((a, b) => a.t - b.t);
+    if (candles.length < 10) {
+      diag.twelvedata = "solo " + candles.length + " velas válidas";
+      return null;
+    }
+    return candles;
+  } catch (e) {
+    diag.twelvedata = "excepción: " + (e && e.message ? e.message : String(e));
+    return null;
+  }
+}
 async function traerYahoo(yahooSimbolo, diag) {
   const url =
     "https://query1.finance.yahoo.com/v8/finance/chart/" +
@@ -65,11 +115,9 @@ async function traerYahoo(yahooSimbolo, diag) {
     return null;
   }
 }
-
 function parseCsvLine(line) {
   return line.split(",").map((v) => v.trim());
 }
-
 async function traerStooq(stooqSimbolo, diag) {
   const url = "https://stooq.com/q/d/l/?s=" + encodeURIComponent(stooqSimbolo) + "&i=15";
   try {
@@ -120,7 +168,6 @@ async function traerStooq(stooqSimbolo, diag) {
     return null;
   }
 }
-
 /** Último recurso: datos sintéticos, siempre marcados demo:true, deterministas por día+símbolo. */
 function generarDemo(cfg) {
   const candles = [];
@@ -151,24 +198,41 @@ function generarDemo(cfg) {
   }
   return candles;
 }
-
 async function manejarDatos(request, env, ctx) {
   const url = new URL(request.url);
   let simbolo = (url.searchParams.get("symbol") || "EURUSD").toUpperCase().replace(/[^A-Z]/g, "");
   if (!SIMBOLOS[simbolo]) simbolo = "EURUSD";
   const cfg = SIMBOLOS[simbolo];
-
   const cache = typeof caches !== "undefined" ? caches.default : null;
   const cacheKey = new Request("https://cache.liquidezdiaria.internal/datos/" + simbolo);
-
+  // 0) Si hay una copia reciente en caché (menos de 15 min y no era demo), se
+  //    sirve directamente sin gastar cuota de la API en vivo.
+  if (cache) {
+    try {
+      const cachedRapida = await cache.match(cacheKey);
+      if (cachedRapida) {
+        const dataRapida = await cachedRapida.json();
+        const edad = Math.floor(Date.now() / 1000) - (dataRapida.fetched_at || 0);
+        if (!dataRapida.demo && edad < CACHE_TTL) {
+          dataRapida.stale = false;
+          return jsonResponse(dataRapida, "no-cache, must-revalidate");
+        }
+      }
+    } catch (e) {
+      // sigue al resto del flujo
+    }
+  }
   const diag = {};
-  let candles = await traerYahoo(cfg.yahoo, diag);
-  let fuente = "yahoo";
+  let candles = await traerTwelveData(cfg.td, env.TWELVEDATA_API_KEY, diag);
+  let fuente = "twelvedata";
+  if (!candles) {
+    candles = await traerYahoo(cfg.yahoo, diag);
+    fuente = "yahoo";
+  }
   if (!candles) {
     candles = await traerStooq(cfg.stooq, diag);
     fuente = "stooq";
   }
-
   if (candles) {
     const salida = {
       symbol: simbolo,
@@ -185,7 +249,6 @@ async function manejarDatos(request, env, ctx) {
     }
     return respParaCliente;
   }
-
   if (cache) {
     try {
       const cached = await cache.match(cacheKey);
@@ -198,7 +261,6 @@ async function manejarDatos(request, env, ctx) {
       // sigue al modo demo
     }
   }
-
   const demo = {
     symbol: simbolo,
     candles: generarDemo(cfg),
@@ -210,7 +272,6 @@ async function manejarDatos(request, env, ctx) {
   };
   return jsonResponse(demo, "no-cache, must-revalidate");
 }
-
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
