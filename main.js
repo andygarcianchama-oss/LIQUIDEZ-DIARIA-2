@@ -87,6 +87,26 @@
     var ultimaVela = ordenadas[ordenadas.length - 1];
     var precioActual = ultimaVela.c;
 
+    // Mismas sesiones (Asia/Londres/NY) pero con las velas del día EN CURSO,
+    // no del día anterior. Una sesión que todavía no ha empezado hoy queda
+    // con high/low null y se pinta como "en curso" o "pendiente" en pantalla.
+    var sesionesHoy = (data.sessions || []).map(function (s) {
+      var velasSesion = velasHoy.filter(function (v) {
+        var hUTC = new Date(v.t * 1000).getUTCHours();
+        return hUTC >= s.startUTC && hUTC < s.endUTC;
+      });
+      var rango = rangoHorarioEspana(s.startUTC, s.endUTC);
+      if (!velasSesion.length) return { id: s.id, label: s.label, rango: rango, high: null, low: null };
+      return {
+        id: s.id,
+        label: s.label,
+        rango: rango,
+        high: Math.max.apply(null, velasSesion.map(function (v) { return v.h; })),
+        low: Math.min.apply(null, velasSesion.map(function (v) { return v.l; }))
+      };
+    });
+    var fechaHoy = velasHoy.length ? fechaLegible(velasHoy[0].t) : fechaLegibleHoy();
+
     var barridoAlcista = todayHigh != null && todayHigh > PDH;
     var barridoBajista = todayLow != null && todayLow < PDL;
     var revirtioTrasAlcista = barridoAlcista && precioActual < PDH;
@@ -106,9 +126,9 @@
     });
 
     return {
-      PDH: PDH, PDL: PDL, sesiones: sesiones,
+      PDH: PDH, PDL: PDL, sesiones: sesiones, sesionesHoy: sesionesHoy,
       todayHigh: todayHigh, todayLow: todayLow, precioActual: precioActual,
-      fechaAyer: fechaLegible(velasAyer[0].t),
+      fechaAyer: fechaLegible(velasAyer[0].t), fechaHoy: fechaHoy,
       barridoAlcista: barridoAlcista, barridoBajista: barridoBajista,
       relato: relato, sesionActual: sesionActual, killzoneActual: killzoneActual,
       velasOrdenadas: ordenadas
@@ -154,12 +174,19 @@
     return rotura;
   }
 
+  // Zona del Order Block basada en el CUERPO de la vela (apertura/cierre), no
+  // en la mecha completa (máximo/mínimo). Da zonas más pequeñas y precisas,
+  // una variante habitual y más estricta de la definición ICT del concepto.
   function encontrarOB(velas, rotura) {
     if (!rotura) return null;
     var inicio = rotura.swingRoto.idx, fin = rotura.idx;
     for (var i = fin; i >= inicio; i--) {
-      if (rotura.direccion === "alcista" && velas[i].c < velas[i].o) return { idx: i, alto: velas[i].h, bajo: velas[i].l };
-      if (rotura.direccion === "bajista" && velas[i].c > velas[i].o) return { idx: i, alto: velas[i].h, bajo: velas[i].l };
+      if (rotura.direccion === "alcista" && velas[i].c < velas[i].o) {
+        return { idx: i, alto: Math.max(velas[i].o, velas[i].c), bajo: Math.min(velas[i].o, velas[i].c) };
+      }
+      if (rotura.direccion === "bajista" && velas[i].c > velas[i].o) {
+        return { idx: i, alto: Math.max(velas[i].o, velas[i].c), bajo: Math.min(velas[i].o, velas[i].c) };
+      }
     }
     return null;
   }
@@ -207,8 +234,114 @@
     }
   }
 
-  function calcularZonasLiquidez(velas, instrumento, maxZonas) {
-    maxZonas = maxZonas || 4;
+  // Reagrupa velas de 15 min en velas de una temporalidad mayor (factor = nº
+  // de velas de 15 min por vela nueva: 4 -> 1H, 16 -> 4H). Se hace en el
+  // propio navegador para no multiplicar las peticiones a la API de datos
+  // por cada temporalidad.
+  function resamplearVelas(velas, factor) {
+    if (!velas || !velas.length) return [];
+    var segundos = factor * 900;
+    var buckets = {}, orden = [];
+    velas.forEach(function (v) {
+      var key = Math.floor(v.t / segundos) * segundos;
+      if (!buckets[key]) {
+        buckets[key] = { t: key, o: v.o, h: v.h, l: v.l, c: v.c };
+        orden.push(key);
+      } else {
+        var b = buckets[key];
+        if (v.h > b.h) b.h = v.h;
+        if (v.l < b.l) b.l = v.l;
+        b.c = v.c; // las velas llegan en orden cronológico: el último cierre gana
+      }
+    });
+    orden.sort(function (a, b) { return a - b; });
+    return orden.map(function (k) { return buckets[k]; });
+  }
+
+  // Marca como "en confluencia" las zonas de distinta temporalidad, mismo
+  // sesgo, cuyo rango de precio se solapa: varias temporalidades señalando
+  // la misma zona refuerza la idea según la metodología ICT/SMC.
+  function detectarConfluencias(zonas) {
+    for (var i = 0; i < zonas.length; i++) {
+      for (var j = i + 1; j < zonas.length; j++) {
+        var a = zonas[i], b = zonas[j];
+        if (a.tf === b.tf || a.direccion !== b.direccion) continue;
+        var solapa = a.ob.bajo <= b.ob.alto && b.ob.bajo <= a.ob.alto;
+        if (solapa) { a.confluencia = true; b.confluencia = true; }
+      }
+    }
+    return zonas;
+  }
+
+  // Calcula entrada/OTE/SL/TP para UN Order Block concreto (misma lógica que
+  // antes usaba una sola vez para la última señal, ahora reutilizable para
+  // todas las zonas detectadas en todas las temporalidades).
+  function calcularSetupDesdeOB(velas, instrumento, PDH, PDL, rotura, ob) {
+    var buffer = instrumento.pip * 10;
+    var dec = instrumento.decimals;
+
+    if (rotura.direccion === "alcista") {
+      var segTramo = velas.slice(ob.idx, rotura.idx + 1);
+      var puntoBajo = Math.min.apply(null, segTramo.map(function (v) { return v.l; }));
+      var segExt = velas.slice(rotura.idx);
+      var puntoAlto = Math.max.apply(null, segExt.map(function (v) { return v.h; }));
+      var rango = puntoAlto - puntoBajo;
+      if (rango <= buffer) return null;
+      var fibo618 = puntoAlto - rango * 0.618;
+      var fibo79 = puntoAlto - rango * 0.79;
+      var entradaBaja = Math.min(fibo79, ob.bajo);
+      var entradaAlta = Math.max(fibo618, ob.alto);
+      var stopLoss = Math.min(puntoBajo, ob.bajo) - buffer;
+      var candA = (PDH != null && PDH > puntoAlto) ? PDH : puntoAlto + rango * 0.272;
+      var candB = puntoAlto + rango * 0.618;
+      var tp1 = Math.min(candA, candB); // TP1 = objetivo más cercano
+      var tp2 = Math.max(candA, candB); // TP2 = objetivo más lejano (extensión)
+      var entradaMedia = (entradaBaja + entradaAlta) / 2;
+      var riesgo = entradaMedia - stopLoss;
+      var beneficio = tp1 - entradaMedia;
+      return {
+        sesgo: "alcista", dec: dec,
+        entradaBaja: entradaBaja, entradaAlta: entradaAlta,
+        oteBaja: Math.min(fibo618, fibo79), oteAlta: Math.max(fibo618, fibo79),
+        stopLoss: stopLoss, tp1: tp1, tp2: tp2,
+        rr: riesgo > 0 ? (beneficio / riesgo) : null,
+        ob: ob
+      };
+    } else {
+      var segTramo2 = velas.slice(ob.idx, rotura.idx + 1);
+      var puntoAlto2 = Math.max.apply(null, segTramo2.map(function (v) { return v.h; }));
+      var segExt2 = velas.slice(rotura.idx);
+      var puntoBajo2 = Math.min.apply(null, segExt2.map(function (v) { return v.l; }));
+      var rango2 = puntoAlto2 - puntoBajo2;
+      if (rango2 <= buffer) return null;
+      var fibo618b = puntoBajo2 + rango2 * 0.618;
+      var fibo79b = puntoBajo2 + rango2 * 0.79;
+      var entradaBaja2 = Math.min(fibo618b, ob.bajo);
+      var entradaAlta2 = Math.max(fibo79b, ob.alto);
+      var stopLoss2 = Math.max(puntoAlto2, ob.alto) + buffer;
+      var candA2 = (PDL != null && PDL < puntoBajo2) ? PDL : puntoBajo2 - rango2 * 0.272;
+      var candB2 = puntoBajo2 - rango2 * 0.618;
+      var tp1b = Math.max(candA2, candB2); // TP1 = objetivo más cercano (precio menos bajo)
+      var tp2b = Math.min(candA2, candB2); // TP2 = objetivo más lejano (extensión)
+      var entradaMedia2 = (entradaBaja2 + entradaAlta2) / 2;
+      var riesgo2 = stopLoss2 - entradaMedia2;
+      var beneficio2 = entradaMedia2 - tp1b;
+      return {
+        sesgo: "bajista", dec: dec,
+        entradaBaja: entradaBaja2, entradaAlta: entradaAlta2,
+        oteBaja: Math.min(fibo618b, fibo79b), oteAlta: Math.max(fibo618b, fibo79b),
+        stopLoss: stopLoss2, tp1: tp1b, tp2: tp2b,
+        rr: riesgo2 > 0 ? (beneficio2 / riesgo2) : null,
+        ob: ob
+      };
+    }
+  }
+
+  // Detecta TODAS las zonas de liquidez (Order Blocks) de una temporalidad
+  // concreta y, para cada una, calcula también su setup de entrada asociado
+  // (si el movimiento que la originó es lo bastante grande para ser fiable).
+  function analizarZonasTF(velas, instrumento, PDH, PDL, tfId, tfLabel, maxZonas) {
+    maxZonas = maxZonas || 20;
     if (!velas || velas.length < 40) return [];
     var swings = detectarSwings(velas, 3);
     var roturas = detectarTodasRoturas(velas, swings);
@@ -219,11 +352,17 @@
       if (!ob) continue;
       // evita duplicar la misma vela de origen si dos rupturas la comparten
       if (zonas.some(function (z) { return z.ob.idx === ob.idx; })) continue;
+      var estado = estadoOB(velas, ob, rotura);
+      var setup = null;
+      safe(function () { setup = calcularSetupDesdeOB(velas, instrumento, PDH, PDL, rotura, ob); }, "calcularSetupDesdeOB");
       zonas.push({
+        tf: tfId, tfLabel: tfLabel,
         direccion: rotura.direccion,
         ob: ob,
-        estado: estadoOB(velas, ob, rotura),
-        t: velas[ob.idx].t
+        estado: estado,
+        t: velas[ob.idx].t,
+        setup: setup,
+        confluencia: false
       });
     }
     return zonas;
@@ -240,121 +379,65 @@
     }
     if (vacio) vacio.hidden = true;
     var dec = instrumento.decimals;
-    var estadoTexto = { "sin testear": "Sin testear", "testeada": "Testeada", "mitigada": "Mitigada" };
-    cont.innerHTML = zonas.map(function (z) {
+    // "Mitigada" se muestra como Breaker Block: una zona que el precio ya
+    // atravesó del todo y que, según ICT/SMC, puede invertir su polaridad
+    // (de soporte a resistencia o viceversa) para futuras reacciones.
+    var estadoTexto = { "sin testear": "Sin testear", "testeada": "Testeada", "mitigada": "Breaker Block" };
+    var ordenadas = zonas.slice().sort(function (a, b) { return b.t - a.t; });
+    cont.innerHTML = ordenadas.map(function (z) {
       var fecha = new Date(z.t * 1000).toLocaleString("es-ES", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" });
-      return '<div class="zona-liquidez zona-liquidez--' + z.direccion + ' zona-liquidez--' + z.estado.replace(" ", "-") + '">' +
+      var claseEstado = z.estado === "mitigada" ? "breaker" : z.estado.replace(" ", "-");
+      return '<div class="zona-liquidez zona-liquidez--' + z.direccion + ' zona-liquidez--' + claseEstado + '">' +
         '<div class="zona-liquidez__top">' +
+        '<span class="zona-liquidez__tf">' + escHTML(z.tfLabel) + '</span>' +
         '<span class="zona-liquidez__tipo">' + (z.direccion === "alcista" ? "Bloque de órdenes alcista" : "Bloque de órdenes bajista") + '</span>' +
         '<span class="zona-liquidez__estado">' + estadoTexto[z.estado] + '</span>' +
         '</div>' +
         '<span class="zona-liquidez__rango">' + fmt(z.ob.bajo, dec) + ' – ' + fmt(z.ob.alto, dec) + '</span>' +
+        (z.confluencia ? '<span class="chip chip--confluencia">Confluencia multi-temporalidad</span>' : '') +
         '<span class="zona-liquidez__fecha">Formado ' + fecha + ' (hora de España)</span>' +
         '</div>';
     }).join("");
   }
 
-  function calcularSenal(velas, instrumento, PDH, PDL) {
-    if (!velas || velas.length < 40) return { sesgo: "neutral", motivo: "No hay velas suficientes todavía para evaluar la estructura." };
-    var swings = detectarSwings(velas, 3);
-    var rotura = detectarRotura(velas, swings);
-    if (!rotura) return { sesgo: "neutral", motivo: "No se ha detectado una ruptura de estructura (BOS) clara en las velas recientes." };
-    var ob = encontrarOB(velas, rotura);
-    if (!ob) return { sesgo: "neutral", motivo: "Hay una ruptura de estructura, pero no se identifica un Order Block claro que la origine." };
-
-    var buffer = instrumento.pip * 10;
-    var dec = instrumento.decimals;
-
-    if (rotura.direccion === "alcista") {
-      var segTramo = velas.slice(ob.idx, rotura.idx + 1);
-      var puntoBajo = Math.min.apply(null, segTramo.map(function (v) { return v.l; }));
-      var segExt = velas.slice(rotura.idx);
-      var puntoAlto = Math.max.apply(null, segExt.map(function (v) { return v.h; }));
-      var rango = puntoAlto - puntoBajo;
-      if (rango <= buffer) return { sesgo: "neutral", motivo: "El movimiento detectado es demasiado pequeño para calcular niveles fiables." };
-      var fibo618 = puntoAlto - rango * 0.618;
-      var fibo79 = puntoAlto - rango * 0.79;
-      var entradaBaja = Math.min(fibo79, ob.bajo);
-      var entradaAlta = Math.max(fibo618, ob.alto);
-      var stopLoss = Math.min(puntoBajo, ob.bajo) - buffer;
-      var candA = (PDH != null && PDH > puntoAlto) ? PDH : puntoAlto + rango * 0.272;
-      var candB = puntoAlto + rango * 0.618;
-      var tp1 = Math.min(candA, candB); // TP1 = objetivo más cercano
-      var tp2 = Math.max(candA, candB); // TP2 = objetivo más lejano (extensión)
-      var entradaMedia = (entradaBaja + entradaAlta) / 2;
-      var riesgo = entradaMedia - stopLoss;
-      var beneficio = tp1 - entradaMedia;
-      return {
-        sesgo: "alcista", dec: dec,
-        entradaBaja: entradaBaja, entradaAlta: entradaAlta,
-        stopLoss: stopLoss, tp1: tp1, tp2: tp2,
-        rr: riesgo > 0 ? (beneficio / riesgo) : null,
-        ob: ob
-      };
-    } else {
-      var segTramo2 = velas.slice(ob.idx, rotura.idx + 1);
-      var puntoAlto2 = Math.max.apply(null, segTramo2.map(function (v) { return v.h; }));
-      var segExt2 = velas.slice(rotura.idx);
-      var puntoBajo2 = Math.min.apply(null, segExt2.map(function (v) { return v.l; }));
-      var rango2 = puntoAlto2 - puntoBajo2;
-      if (rango2 <= buffer) return { sesgo: "neutral", motivo: "El movimiento detectado es demasiado pequeño para calcular niveles fiables." };
-      var fibo618b = puntoBajo2 + rango2 * 0.618;
-      var fibo79b = puntoBajo2 + rango2 * 0.79;
-      var entradaBaja2 = Math.min(fibo618b, ob.bajo);
-      var entradaAlta2 = Math.max(fibo79b, ob.alto);
-      var stopLoss2 = Math.max(puntoAlto2, ob.alto) + buffer;
-      var candA2 = (PDL != null && PDL < puntoBajo2) ? PDL : puntoBajo2 - rango2 * 0.272;
-      var candB2 = puntoBajo2 - rango2 * 0.618;
-      var tp1b = Math.max(candA2, candB2); // TP1 = objetivo más cercano (precio menos bajo)
-      var tp2b = Math.min(candA2, candB2); // TP2 = objetivo más lejano (extensión)
-      var entradaMedia2 = (entradaBaja2 + entradaAlta2) / 2;
-      var riesgo2 = stopLoss2 - entradaMedia2;
-      var beneficio2 = entradaMedia2 - tp1b;
-      return {
-        sesgo: "bajista", dec: dec,
-        entradaBaja: entradaBaja2, entradaAlta: entradaAlta2,
-        stopLoss: stopLoss2, tp1: tp1b, tp2: tp2b,
-        rr: riesgo2 > 0 ? (beneficio2 / riesgo2) : null,
-        ob: ob
-      };
-    }
-  }
-
-  function pintarSenal(instrumento, senal) {
-    var panel = $("[data-senal-panel]");
-    if (!panel) return;
-    var dec = instrumento.decimals;
-    panel.setAttribute("data-sesgo", senal.sesgo);
-
-    var badge = $("[data-senal-badge]");
-    if (badge) {
-      var textos = { alcista: "Sesgo alcista", bajista: "Sesgo bajista", neutral: "Sin señal clara ahora mismo" };
-      badge.textContent = textos[senal.sesgo] || "Sin señal";
-    }
-
-    var vacio = $("[data-senal-neutral]");
-    var niveles = $("[data-senal-niveles]");
-    if (senal.sesgo === "neutral") {
-      if (niveles) niveles.hidden = true;
-      if (vacio) { vacio.hidden = false; vacio.textContent = senal.motivo || "No hay una señal técnica clara ahora mismo con las reglas de esta herramienta. Vigila los niveles PDH/PDL de arriba."; }
+  // Pinta TODOS los setups detectados (sin límite artificial, a petición del
+  // usuario), uno por cada zona de liquidez no mitigada con un movimiento de
+  // origen suficientemente grande, en cualquiera de las tres temporalidades.
+  function pintarSetups(instrumento, zonas) {
+    var cont = $("[data-setups]");
+    var vacio = $("[data-setups-vacio]");
+    var contador = $("[data-setups-contador]");
+    if (!cont) return;
+    var setups = zonas.filter(function (z) { return z.setup && z.estado !== "mitigada"; })
+      .sort(function (a, b) { return b.t - a.t; });
+    if (contador) contador.textContent = String(setups.length);
+    if (!setups.length) {
+      cont.innerHTML = "";
+      if (vacio) vacio.hidden = false;
       return;
     }
     if (vacio) vacio.hidden = true;
-    if (niveles) niveles.hidden = false;
-
-    var setTxt = function (sel, val) { var el = $(sel); if (el) el.textContent = val; };
-    setTxt("[data-senal-entrada]", fmt(senal.entradaBaja, dec) + " – " + fmt(senal.entradaAlta, dec));
-    setTxt("[data-senal-sl]", fmt(senal.stopLoss, dec));
-    setTxt("[data-senal-tp1]", fmt(senal.tp1, dec));
-    setTxt("[data-senal-tp2]", fmt(senal.tp2, dec));
-    setTxt("[data-senal-rr]", senal.rr != null && isFinite(senal.rr) ? ("1:" + senal.rr.toFixed(2)) : "—");
-    setTxt("[data-senal-ob]", fmt(senal.ob.bajo, dec) + " – " + fmt(senal.ob.alto, dec));
-    setTxt("[data-senal-explicacion]",
-      (senal.sesgo === "alcista"
-        ? "Estructura alcista: el precio rompió un máximo previo (BOS) tras un impulso que nació en el Order Block señalado. La zona de entrada combina ese Order Block con el retroceso de Fibonacci 61,8%–79% del impulso."
-        : "Estructura bajista: el precio rompió un mínimo previo (BOS) tras un impulso que nació en el Order Block señalado. La zona de entrada combina ese Order Block con el retroceso de Fibonacci 61,8%–79% del impulso.")
-      + " El stop loss queda más allá del Order Block y el primer objetivo apunta a la siguiente liquidez no capturada."
-    );
+    var dec = instrumento.decimals;
+    cont.innerHTML = setups.map(function (z) {
+      var s = z.setup;
+      var fecha = new Date(z.t * 1000).toLocaleString("es-ES", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" });
+      return '<div class="setup-card setup-card--' + s.sesgo + '">' +
+        '<div class="setup-card__top">' +
+        '<span class="setup-card__tf">' + escHTML(z.tfLabel) + '</span>' +
+        '<span class="setup-card__sesgo">' + (s.sesgo === "alcista" ? "Sesgo alcista" : "Sesgo bajista") + '</span>' +
+        (z.confluencia ? '<span class="chip chip--confluencia">Confluencia</span>' : '') +
+        '</div>' +
+        '<div class="setup-card__niveles">' +
+        '<span><em>Entrada</em> ' + fmt(s.entradaBaja, dec) + ' – ' + fmt(s.entradaAlta, dec) + '</span>' +
+        '<span><em>Zona OTE (61,8–79%)</em> ' + fmt(s.oteBaja, dec) + ' – ' + fmt(s.oteAlta, dec) + '</span>' +
+        '<span><em>Stop loss</em> ' + fmt(s.stopLoss, dec) + '</span>' +
+        '<span><em>TP1</em> ' + fmt(s.tp1, dec) + '</span>' +
+        '<span><em>TP2</em> ' + fmt(s.tp2, dec) + '</span>' +
+        '<span><em>R:R</em> ' + (s.rr != null && isFinite(s.rr) ? ("1:" + s.rr.toFixed(2)) : "—") + '</span>' +
+        '</div>' +
+        '<span class="setup-card__fecha">Order Block formado ' + fecha + ' (hora de España)</span>' +
+        '</div>';
+    }).join("");
   }
 
   // ---------------------------------------------------------------------
@@ -576,14 +659,20 @@
     }
 
     safe(function () {
-      var senal = calcularSenal(analisis.velasOrdenadas, instrumento, analisis.PDH, analisis.PDL);
-      pintarSenal(instrumento, senal);
-    }, "calcularSenal");
+      var velas15 = analisis.velasOrdenadas;
+      var velas1h = resamplearVelas(velas15, 4);
+      var velas4h = resamplearVelas(velas15, 16);
+      var zonas15 = analizarZonasTF(velas15, instrumento, analisis.PDH, analisis.PDL, "15m", "15m", 20);
+      var zonas1h = analizarZonasTF(velas1h, instrumento, analisis.PDH, analisis.PDL, "1h", "1H", 20);
+      var zonas4h = analizarZonasTF(velas4h, instrumento, analisis.PDH, analisis.PDL, "4h", "4H", 20);
+      var todasZonas = detectarConfluencias(zonas15.concat(zonas1h, zonas4h));
+      pintarZonasLiquidez(instrumento, todasZonas);
+      pintarSetups(instrumento, todasZonas);
+    }, "analizarZonasTF");
 
     safe(function () {
-      var zonas = calcularZonasLiquidez(analisis.velasOrdenadas, instrumento, 4);
-      pintarZonasLiquidez(instrumento, zonas);
-    }, "calcularZonasLiquidez");
+      pintarHoy(analisis);
+    }, "pintarHoy");
 
     safe(function () {
       var score = calcularMomentum(analisis.velasOrdenadas, instrumento);
@@ -596,6 +685,38 @@
 
   function fechaLegibleHoy() {
     return new Date().toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
+  }
+
+  // ---------------------------------------------------------------------
+  // Panel "Hoy": máximo/mínimo y sesiones del día EN CURSO (no del día
+  // anterior, que ya se muestra en el bloque de PDH/PDL de arriba).
+  // ---------------------------------------------------------------------
+  function pintarHoy(analisis) {
+    var panel = $("[data-hoy-panel]");
+    if (!panel) return;
+    var instrumento = (data.instruments || []).find(function (i) { return i.symbol === estadoActual.symbol; });
+    var dec = instrumento ? instrumento.decimals : 2;
+
+    var fechaEl = $("[data-fecha-hoy]");
+    if (fechaEl) fechaEl.textContent = analisis.fechaHoy;
+
+    var maxEl = $("[data-hoy-max]"), minEl = $("[data-hoy-min]");
+    if (maxEl) maxEl.textContent = fmt(analisis.todayHigh, dec);
+    if (minEl) minEl.textContent = fmt(analisis.todayLow, dec);
+
+    var cont = $("[data-sesiones-hoy]");
+    if (cont) {
+      cont.innerHTML = (analisis.sesionesHoy || []).map(function (s) {
+        var sinDatos = s.high == null;
+        return '<div class="sesion-card' + (sinDatos ? ' sesion-card--pendiente' : '') + '">' +
+          '<span class="sesion-card__label">' + escHTML(s.label) + '</span>' +
+          '<span class="sesion-card__rango">' + escHTML(s.rango) + '</span>' +
+          '<div class="sesion-card__niveles">' +
+          '<span><em>Máx.</em> ' + (sinDatos ? "—" : fmt(s.high, dec)) + '</span>' +
+          '<span><em>Mín.</em> ' + (sinDatos ? "—" : fmt(s.low, dec)) + '</span>' +
+          '</div></div>';
+      }).join("");
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -766,7 +887,7 @@
           script.async = true;
           script.text = JSON.stringify({
             colorTheme: "light", isTransparent: false, width: "100%", height: 420,
-            locale: "es", importanceFilter: "0,1", countryFilter: "us,eu,gb,jp"
+            locale: "es", importanceFilter: "-1,0,1", countryFilter: "us,eu,gb,jp"
           });
           script.onerror = function () {
             contenedor.innerHTML = '<p class="tv-fallback">No se pudo cargar el calendario de noticias (puede estar bloqueado por un bloqueador de anuncios).</p>';

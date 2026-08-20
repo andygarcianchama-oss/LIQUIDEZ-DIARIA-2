@@ -23,7 +23,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
 
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=20260820a">
+<link rel="stylesheet" href="styles.css?v=20260820b">
 
 <script type="application/ld+json">
 {
@@ -126,6 +126,24 @@
         <p class="gauge-nota">Estimado a partir de la estructura y el momentum reciente del precio de este instrumento — no es un índice de sentimiento de mercado agregado ni de terceros.</p>
       </div>
 
+      <div class="hoy-panel" data-hoy-panel aria-live="polite">
+        <h2>Hoy <span data-fecha-hoy>—</span> (día en curso)</h2>
+        <div class="niveles-grid niveles-grid--hoy">
+          <div class="nivel-destacado nivel-destacado--pdh">
+            <span class="nivel-destacado__label">Máximo de hoy</span>
+            <span class="nivel-destacado__valor" data-hoy-max>—</span>
+          </div>
+          <div class="nivel-destacado nivel-destacado--pdl">
+            <span class="nivel-destacado__label">Mínimo de hoy</span>
+            <span class="nivel-destacado__valor" data-hoy-min>—</span>
+          </div>
+        </div>
+        <p class="hoy-nota">Máximo y mínimo del día EN CURSO (no del día anterior) y estado de cada sesión de hoy. Una sesión que todavía no ha empezado muestra "—".</p>
+        <div class="sesiones-grid" data-sesiones-hoy>
+          <div class="sesion-card sesion-card--vacia">Cargando sesiones de hoy…</div>
+        </div>
+      </div>
+
       <h2 class="sesiones-titulo">Sesiones del <span data-fecha-ayer>día anterior</span> (hora de España)</h2>
       <div class="sesiones-grid" data-sesiones>
         <div class="sesion-card sesion-card--vacia">Cargando sesiones…</div>
@@ -138,32 +156,22 @@
         <p data-relato>Calculando el contexto de mercado…</p>
       </div>
 
-      <div class="senal-panel" data-senal-panel data-sesgo="neutral" aria-live="polite">
-        <div class="senal-panel__top">
-          <h2>Señal técnica automática</h2>
-          <span class="senal-badge" data-senal-badge>Calculando…</span>
+      <div class="setups-panel" data-setups-panel aria-live="polite">
+        <div class="setups-panel__top">
+          <h2>Setups técnicos automáticos</h2>
+          <span class="setups-contador">Detectados: <strong data-setups-contador>0</strong></span>
         </div>
 
-        <p class="senal-disclaimer">⚠️ <strong>Niveles calculados por reglas, no una recomendación personal.</strong> Se generan automáticamente a partir de la estructura de mercado, el último Order Block y Fibonacci sobre datos históricos recientes. Pueden fallar como cualquier método técnico: verifícalos siempre con tu propio análisis, usa un stop loss y no arriesgues más de lo que puedes permitirte perder.</p>
+        <p class="senal-disclaimer">⚠️ <strong>Niveles calculados por reglas, no una recomendación personal.</strong> Se generan automáticamente a partir de la estructura de mercado, los Order Blocks y Fibonacci sobre datos históricos recientes, en las temporalidades de 15 minutos, 1 hora y 4 horas. Pueden fallar como cualquier método técnico: verifícalos siempre con tu propio análisis, usa un stop loss y no arriesgues más de lo que puedes permitirte perder.</p>
 
-        <p class="senal-vacio" data-senal-neutral hidden>No hay señal.</p>
+        <p class="senal-vacio" data-setups-vacio hidden>No se ha detectado ningún setup claro en estas temporalidades ahora mismo. Vigila los niveles PDH/PDL y las zonas de liquidez de abajo.</p>
 
-        <div class="senal-niveles" data-senal-niveles hidden>
-          <div class="senal-niveles__grid">
-            <div class="senal-nivel"><span class="senal-nivel__label">Zona de entrada</span><span class="senal-nivel__valor" data-senal-entrada>—</span></div>
-            <div class="senal-nivel senal-nivel--sl"><span class="senal-nivel__label">Stop loss</span><span class="senal-nivel__valor" data-senal-sl>—</span></div>
-            <div class="senal-nivel senal-nivel--tp"><span class="senal-nivel__label">Take profit 1</span><span class="senal-nivel__valor" data-senal-tp1>—</span></div>
-            <div class="senal-nivel senal-nivel--tp"><span class="senal-nivel__label">Take profit 2</span><span class="senal-nivel__valor" data-senal-tp2>—</span></div>
-            <div class="senal-nivel"><span class="senal-nivel__label">Ratio riesgo:beneficio</span><span class="senal-nivel__valor" data-senal-rr>—</span></div>
-            <div class="senal-nivel"><span class="senal-nivel__label">Bloque de órdenes usado</span><span class="senal-nivel__valor" data-senal-ob>—</span></div>
-          </div>
-          <p class="senal-explicacion" data-senal-explicacion>—</p>
-        </div>
+        <div class="setups-grid" data-setups></div>
       </div>
 
       <div class="zonas-panel">
-        <h2>Zonas de liquidez (Order Blocks recientes)</h2>
-        <p class="zonas-intro">Los últimos bloques de órdenes detectados en la estructura reciente: zonas donde el precio podría reaccionar si vuelve a visitarlas. "Sin testear" es la más fresca; "mitigada" significa que el precio ya la atravesó del todo y pierde relevancia.</p>
+        <h2>Zonas de liquidez (Order Blocks recientes, 15m / 1H / 4H)</h2>
+        <p class="zonas-intro">Los bloques de órdenes detectados en 15 minutos, 1 hora y 4 horas: zonas donde el precio podría reaccionar si vuelve a visitarlas. "Sin testear" es la más fresca; "Breaker Block" significa que el precio ya la atravesó del todo (Order Block mitigado que puede invertir su polaridad). Una etiqueta "Confluencia multi-temporalidad" indica que varias temporalidades señalan la misma zona.</p>
         <p class="zonas-vacio" data-zonas-vacio hidden>Todavía no se han detectado zonas de liquidez claras con los datos disponibles.</p>
         <div class="zonas-liquidez-grid" data-zonas-liquidez></div>
       </div>
@@ -245,6 +253,8 @@
       <div class="concepto-card"><h3>Entrada óptima de Fibonacci (OTE)</h3><p>Del inglés Optimal Trade Entry: la zona entre el 61,8% y el 79% de retroceso de un movimiento impulsivo, usada como área preferente para buscar entradas a favor de la tendencia.</p></div>
       <div class="concepto-card"><h3>Máximo y mínimo del día anterior (PDH / PDL)</h3><p>El máximo y el mínimo del día de negociación anterior, dos de los niveles de liquidez más vigilados.</p></div>
       <div class="concepto-card"><h3>Mitigación</h3><p>Cuando el precio vuelve a una zona (un Order Block, por ejemplo) y la atraviesa por completo. Se considera que la zona queda "mitigada" o consumida, y pierde buena parte de su relevancia para operar.</p></div>
+      <div class="concepto-card"><h3>Breaker Block</h3><p>Un Order Block que ya fue mitigado (el precio lo atravesó por completo) y que, según ICT/SMC, puede invertir su polaridad: una zona que antes actuaba como soporte pasa a vigilarse como resistencia, y viceversa.</p></div>
+      <div class="concepto-card"><h3>Confluencia multi-temporalidad</h3><p>Cuando dos o más temporalidades (por ejemplo 15 minutos y 4 horas) señalan una zona de liquidez en un rango de precio muy similar. Cuantas más temporalidades coincidan en una zona, más peso suele dársele dentro de la metodología.</p></div>
     </div>
   </section>
 
@@ -260,7 +270,7 @@
       <details><summary>¿Con qué frecuencia se actualizan los niveles?</summary><p>Varias veces por hora. La hora de la última actualización aparece junto al análisis de cada instrumento.</p></details>
       <details><summary>¿Necesito registrarme para usarla?</summary><p>No, funciona directamente al entrar, sin cuentas ni instalaciones.</p></details>
       <details><summary>¿En qué zona horaria están las sesiones?</summary><p>En hora de España (con el cambio de horario de verano/invierno aplicado automáticamente). Asia, Londres y Nueva York equivalen aproximadamente a 01:00–09:00, 09:00–14:00 y 14:00–22:00 en horario de invierno (una hora más en horario de verano); son franjas aproximadas y simplificadas con fines educativos, no coinciden exactamente con el horario oficial de cada bolsa.</p></details>
-      <details><summary>¿Funciona para criptomonedas o acciones?</summary><p>Por ahora se centra en EUR/USD, GBP/USD, USD/JPY y XAU/USD (oro).</p></details>
+      <details><summary>¿Funciona para criptomonedas o acciones?</summary><p>Cubre EUR/USD, GBP/USD, USD/JPY, XAU/USD (oro) y Bitcoin (BTC/USD). Por ahora no incluye acciones individuales.</p></details>
     </div>
   </section>
 
@@ -295,7 +305,7 @@
   <div class="ad-slot ad-slot--toast"><span>ANUNCIO</span></div>
 </aside>
 
-<script defer src="lib/manifest.js?v=20260820a"></script>
-<script defer src="main.js?v=20260820a"></script>
+<script defer src="lib/manifest.js?v=20260820b"></script>
+<script defer src="main.js?v=20260820b"></script>
 </body>
 </html>

@@ -158,10 +158,24 @@ h1, h2, h3 { text-wrap: balance; line-height: 1.15; letter-spacing: -0.01em; fon
 @media (min-width: 640px) { .sesiones-grid { grid-template-columns: repeat(3, 1fr); } }
 .sesion-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: .8rem .9rem; }
 .sesion-card--vacia { color: var(--text-muted); font-size: .85rem; }
+.sesion-card--pendiente { opacity: .55; }
 .sesion-card__label { display: block; font-weight: 700; font-size: .85rem; margin-bottom: .1rem; }
 .sesion-card__rango { display: block; font-family: var(--mono); font-size: .78rem; color: var(--text-muted); margin-bottom: .45rem; }
 .sesion-card__niveles { display: flex; gap: 1rem; font-family: var(--mono); font-size: .88rem; }
 .sesion-card__niveles em { font-style: normal; color: var(--text-muted); margin-right: .25rem; }
+
+/* =============================================================
+   6zero. Panel "Hoy" (máximo/mínimo y sesiones del día en curso)
+   ============================================================= */
+.hoy-panel {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 1.1rem 1.2rem; margin-bottom: 1.25rem; border-left: 4px solid var(--accent);
+}
+.hoy-panel h2 { font-size: 1rem; margin-bottom: .6rem; }
+.hoy-panel h2 span { color: var(--accent); }
+.niveles-grid--hoy { grid-template-columns: 1fr; margin-bottom: .5rem; }
+@media (min-width: 640px) { .niveles-grid--hoy { grid-template-columns: repeat(2, 1fr); } }
+.hoy-nota { font-size: .8rem; color: var(--text-muted); margin-bottom: .75rem; }
 
 .relato-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem 1.1rem; margin-bottom: 1.25rem; }
 .relato-card h2 { font-size: 1rem; margin-bottom: .5rem; }
@@ -176,37 +190,46 @@ h1, h2, h3 { text-wrap: balance; line-height: 1.15; letter-spacing: -0.01em; fon
 .privacidad-badge { font-size: .82rem; color: var(--text-muted); }
 
 /* =============================================================
-   6bis. Panel de señal técnica automática
+   6bis. Panel de setups técnicos automáticos (multi-temporalidad)
    ============================================================= */
-.senal-panel {
+.setups-panel {
   background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 1.1rem 1.2rem; margin-bottom: 1.25rem;
 }
-.senal-panel[data-sesgo="alcista"] { border-left: 4px solid var(--up); }
-.senal-panel[data-sesgo="bajista"] { border-left: 4px solid var(--down); }
-.senal-panel__top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem; margin-bottom: .75rem; }
-.senal-panel__top h2 { font-size: 1rem; }
-.senal-badge { font-size: .8rem; font-weight: 700; padding: .35rem .75rem; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); }
-.senal-panel[data-sesgo="alcista"] .senal-badge { background: #e6f6ee; border-color: #a9e0c3; color: var(--up); }
-.senal-panel[data-sesgo="bajista"] .senal-badge { background: #fdeceb; border-color: #f3b3ae; color: var(--down); }
-@media (prefers-color-scheme: dark) {
-  .senal-panel[data-sesgo="alcista"] .senal-badge { background: #0f2e1f; color: #6fe3a6; border-color: #1c5c3c; }
-  .senal-panel[data-sesgo="bajista"] .senal-badge { background: #3a1613; color: #ff9a92; border-color: #6b2924; }
-}
+.setups-panel__top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem; margin-bottom: .75rem; }
+.setups-panel__top h2 { font-size: 1rem; }
+.setups-contador { font-size: .82rem; color: var(--text-muted); font-family: var(--mono); }
+.setups-contador strong { color: var(--text); }
 .senal-disclaimer {
   font-size: .82rem; color: #7a5a00; background: var(--warn-bg); border: 1px solid var(--warn-border);
   border-radius: var(--radius-sm); padding: .65rem .85rem; margin-bottom: .85rem;
 }
 @media (prefers-color-scheme: dark) { .senal-disclaimer { color: #e8c96a; } }
 .senal-vacio { color: var(--text-muted); font-size: .92rem; }
-.senal-niveles__grid { display: grid; grid-template-columns: 1fr; gap: .6rem; margin-bottom: .85rem; }
-@media (min-width: 640px) { .senal-niveles__grid { grid-template-columns: repeat(3, 1fr); } }
-.senal-nivel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: .7rem .85rem; display: flex; flex-direction: column; gap: .3rem; }
-.senal-nivel__label { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .02em; color: var(--text-muted); }
-.senal-nivel__valor { font-family: var(--mono); font-size: 1.1rem; font-weight: 700; }
-.senal-nivel--sl .senal-nivel__valor { color: var(--down); }
-.senal-nivel--tp .senal-nivel__valor { color: var(--up); }
-.senal-explicacion { font-size: .88rem; color: var(--text-muted); }
+
+.setups-grid { display: grid; grid-template-columns: 1fr; gap: .75rem; }
+@media (min-width: 720px) { .setups-grid { grid-template-columns: repeat(2, 1fr); } }
+.setup-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: .9rem 1rem; display: flex; flex-direction: column; gap: .55rem;
+  border-left: 4px solid var(--border);
+}
+.setup-card--alcista { border-left-color: var(--up); }
+.setup-card--bajista { border-left-color: var(--down); }
+.setup-card__top { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+.setup-card__tf {
+  font-size: .72rem; font-weight: 700; padding: .2rem .55rem; border-radius: 999px;
+  background: var(--bg); border: 1px solid var(--border); color: var(--text-muted); font-family: var(--mono);
+}
+.setup-card__sesgo { font-size: .82rem; font-weight: 700; }
+.setup-card--alcista .setup-card__sesgo { color: var(--up); }
+.setup-card--bajista .setup-card__sesgo { color: var(--down); }
+.setup-card__niveles { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.setup-card__niveles span { display: flex; flex-direction: column; gap: .15rem; font-family: var(--mono); font-size: .88rem; font-weight: 700; }
+.setup-card__niveles em { font-style: normal; font-weight: 600; text-transform: uppercase; letter-spacing: .02em; font-size: .68rem; color: var(--text-muted); font-family: var(--sans); }
+.setup-card__fecha { font-size: .76rem; color: var(--text-muted); }
+.chip--confluencia { background: #f0e7ff; border-color: #d3b9ff; color: #6c2bd9; }
+@media (prefers-color-scheme: dark) { .chip--confluencia { background: #2a1a4d; color: #c9a8ff; border-color: #4a2f86; } }
 
 /* =============================================================
    6quater. Zonas de liquidez (varios Order Blocks)
@@ -224,15 +247,22 @@ h1, h2, h3 { text-wrap: balance; line-height: 1.15; letter-spacing: -0.01em; fon
 }
 .zona-liquidez--alcista { border-left-color: var(--up); }
 .zona-liquidez--bajista { border-left-color: var(--down); }
-.zona-liquidez--mitigada { opacity: .55; }
-.zona-liquidez__top { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.zona-liquidez--breaker { opacity: .6; }
+.zona-liquidez__top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .4rem; }
+.zona-liquidez__tf {
+  font-size: .68rem; font-weight: 700; padding: .15rem .5rem; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); font-family: var(--mono);
+  margin-right: auto;
+}
 .zona-liquidez__tipo { font-size: .82rem; font-weight: 700; }
 .zona-liquidez__estado { font-size: .72rem; font-weight: 700; padding: .2rem .55rem; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); text-transform: uppercase; letter-spacing: .02em; }
 .zona-liquidez--sin-testear .zona-liquidez__estado { background: #e7f0ff; border-color: #b9d0ff; color: var(--accent-dark); }
 .zona-liquidez--testeada .zona-liquidez__estado { background: var(--warn-bg); border-color: var(--warn-border); color: #7a5a00; }
+.zona-liquidez--breaker .zona-liquidez__estado { background: #f0e7ff; border-color: #d3b9ff; color: #6c2bd9; }
 @media (prefers-color-scheme: dark) {
   .zona-liquidez--sin-testear .zona-liquidez__estado { background: #142a52; color: #9dc0ff; border-color: #2c4a86; }
   .zona-liquidez--testeada .zona-liquidez__estado { color: #e8c96a; }
+  .zona-liquidez--breaker .zona-liquidez__estado { background: #2a1a4d; color: #c9a8ff; border-color: #4a2f86; }
 }
 .zona-liquidez__rango { font-family: var(--mono); font-weight: 700; font-size: 1rem; }
 .zona-liquidez__fecha { font-size: .76rem; color: var(--text-muted); }
