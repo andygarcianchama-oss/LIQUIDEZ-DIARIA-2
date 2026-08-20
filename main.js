@@ -337,12 +337,25 @@
       // entrada del rango": en un retroceso alcista el precio llega a la zona
       // desde arriba, así que el primer borde que toca es el alto.
       var stopLoss = entradaAlta - slDistancia;
-      var candA = (PDH != null && PDH > puntoAlto) ? PDH : puntoAlto + rango * 0.272;
-      var candB = puntoAlto + rango * 0.618;
-      var tp1 = Math.min(candA, candB); // TP1 = objetivo más cercano
-      var tp2 = Math.max(candA, candB); // TP2 = objetivo más lejano (extensión)
       var entradaMedia = (entradaBaja + entradaAlta) / 2;
       var riesgo = entradaMedia - stopLoss;
+      // TPs pensados para scalping: se buscan los niveles de liquidez más
+      // próximos EN LA DIRECCIÓN de la operación (el máximo del propio
+      // movimiento, que actúa como imán de liquidez cercano, y el PDH si aún
+      // no ha sido barrido), con extensiones de Fibonacci como respaldo
+      // cuando no hay un nivel de liquidez claro. Se acotan entre 1,5R y 4R
+      // para que los objetivos sigan siendo alcanzables en una operación
+      // corta, en vez de extensiones estructurales lejanas.
+      var pisoTP1 = entradaMedia + riesgo * 1.5;
+      var techoTP = entradaMedia + riesgo * 4;
+      var candidatosTP = [puntoAlto, (PDH != null && PDH > puntoAlto) ? PDH : null, puntoAlto + rango * 0.272, puntoAlto + rango * 0.618]
+        .filter(function (v) { return v != null && v > entradaMedia; })
+        .sort(function (a, b) { return a - b; });
+      var clampAlcista = function (v) { return Math.min(Math.max(v, pisoTP1), techoTP); };
+      var tp1 = candidatosTP.length ? clampAlcista(candidatosTP[0]) : pisoTP1;
+      var restoTP = candidatosTP.filter(function (v) { return clampAlcista(v) > tp1 + 1e-9; });
+      var tp2 = restoTP.length ? clampAlcista(restoTP[0]) : (entradaMedia + riesgo * 3);
+      if (tp2 <= tp1) tp2 = tp1 + riesgo;
       var beneficio = tp1 - entradaMedia;
       return {
         sesgo: "alcista", dec: dec,
@@ -374,12 +387,22 @@
       // que el primer borde que toca es el bajo: el stop se coloca a 100
       // pips por encima de ese borde.
       var stopLoss2 = entradaBaja2 + slDistancia;
-      var candA2 = (PDL != null && PDL < puntoBajo2) ? PDL : puntoBajo2 - rango2 * 0.272;
-      var candB2 = puntoBajo2 - rango2 * 0.618;
-      var tp1b = Math.max(candA2, candB2); // TP1 = objetivo más cercano (precio menos bajo)
-      var tp2b = Math.min(candA2, candB2); // TP2 = objetivo más lejano (extensión)
       var entradaMedia2 = (entradaBaja2 + entradaAlta2) / 2;
       var riesgo2 = stopLoss2 - entradaMedia2;
+      // Igual que en el caso alcista: TPs de scalping anclados a la liquidez
+      // más próxima (el mínimo del propio movimiento y el PDL si sigue sin
+      // barrer), con extensiones de Fibonacci como respaldo, acotados entre
+      // 1,5R y 4R para mantener objetivos realistas a corto plazo.
+      var pisoTP1b = entradaMedia2 - riesgo2 * 1.5;
+      var techoTPb = entradaMedia2 - riesgo2 * 4;
+      var candidatosTPb = [puntoBajo2, (PDL != null && PDL < puntoBajo2) ? PDL : null, puntoBajo2 - rango2 * 0.272, puntoBajo2 - rango2 * 0.618]
+        .filter(function (v) { return v != null && v < entradaMedia2; })
+        .sort(function (a, b) { return b - a; });
+      var clampBajista = function (v) { return Math.max(Math.min(v, pisoTP1b), techoTPb); };
+      var tp1b = candidatosTPb.length ? clampBajista(candidatosTPb[0]) : pisoTP1b;
+      var restoTPb = candidatosTPb.filter(function (v) { return clampBajista(v) < tp1b - 1e-9; });
+      var tp2b = restoTPb.length ? clampBajista(restoTPb[0]) : (entradaMedia2 - riesgo2 * 3);
+      if (tp2b >= tp1b) tp2b = tp1b - riesgo2;
       var beneficio2 = entradaMedia2 - tp1b;
       return {
         sesgo: "bajista", dec: dec,

@@ -23,7 +23,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
 
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=20260820d">
+<link rel="stylesheet" href="styles.css?v=20260820e">
 
 <script type="application/ld+json">
 {
@@ -42,7 +42,7 @@
   "@type": "FAQPage",
   "mainEntity": [
     { "@type": "Question", "name": "¿Esto es una recomendación de compra o venta?", "acceptedAnswer": { "@type": "Answer", "text": "Los niveles de entrada, stop loss y take profit se calculan aplicando reglas técnicas (estructura de mercado, Order Blocks, Fibonacci y liquidez) sobre datos históricos, de forma automática. No son una recomendación personalizada ni una garantía de resultado." } },
-    { "@type": "Question", "name": "¿Cómo se calculan el stop loss y los take profit?", "acceptedAnswer": { "@type": "Answer", "text": "El stop loss se coloca más allá del Order Block o el origen del movimiento. Los take profit usan la siguiente liquidez no capturada (por ejemplo el PDH/PDL) y extensiones de Fibonacci." } },
+    { "@type": "Question", "name": "¿Cómo se calculan el stop loss y los take profit?", "acceptedAnswer": { "@type": "Answer", "text": "El stop loss se coloca a una distancia fija (100 pips) del borde de la zona de entrada. Los take profit priorizan la liquidez más próxima (el máximo o mínimo del propio movimiento, o el PDH/PDL) y se acotan entre 1,5 y 4 veces el riesgo, pensados para scalping." } },
     { "@type": "Question", "name": "¿Qué son los conceptos ICT y Smart Money Concepts (SMC)?", "acceptedAnswer": { "@type": "Answer", "text": "Un conjunto de ideas sobre liquidez, barridos de liquidez, estructura de mercado y zonas horarias clave usadas para leer el comportamiento del precio." } },
     { "@type": "Question", "name": "¿Por qué son importantes los máximos y mínimos del día anterior?", "acceptedAnswer": { "@type": "Answer", "text": "Suelen actuar como imanes de liquidez: zonas donde el precio busca operativa antes de continuar o revertir su movimiento." } },
     { "@type": "Question", "name": "¿Necesito registrarme para usarla?", "acceptedAnswer": { "@type": "Answer", "text": "No, la herramienta funciona directamente al entrar, sin cuentas ni instalaciones." } }
@@ -263,7 +263,7 @@
     <div class="faq-list" data-faqs>
       <details><summary>¿Esto es una recomendación de compra o venta?</summary><p>Los niveles de entrada, stop loss y take profit se calculan aplicando reglas técnicas (estructura de mercado, Order Blocks, Fibonacci y liquidez) sobre datos históricos, de forma automática. No son una recomendación personalizada ni una garantía de resultado: verifícalos siempre con tu propio análisis antes de operar.</p></details>
       <details><summary>¿Por qué a veces no aparece ninguna señal?</summary><p>Cuando la estructura reciente no muestra una ruptura clara (BOS) ni un Order Block identificable, la herramienta lo indica en vez de inventar una señal forzada.</p></details>
-      <details><summary>¿Cómo se calculan el stop loss y los take profit?</summary><p>El stop loss se coloca más allá del Order Block o el origen del movimiento. Los take profit usan la siguiente liquidez no capturada (por ejemplo el PDH/PDL) y extensiones de Fibonacci (127% y 161,8%).</p></details>
+      <details><summary>¿Cómo se calculan el stop loss y los take profit?</summary><p>El stop loss se coloca a una distancia fija de 100 pips desde el borde de la zona de entrada, para mantenerlo ajustado. Los take profit se calculan pensando en el scalping: se priorizan los niveles de liquidez más próximos en la dirección de la operación (el máximo o mínimo del propio movimiento impulsivo, o el PDH/PDL si aún no se han barrido) y, si no hay liquidez cercana, se usan extensiones de Fibonacci del rango. En todos los casos se acotan entre 1,5 y 4 veces el riesgo para que los objetivos sean realistas y alcanzables a corto plazo.</p></details>
       <details><summary>¿Qué son los conceptos ICT y Smart Money Concepts (SMC)?</summary><p>Un conjunto de ideas sobre liquidez, barridos de liquidez, estructura de mercado y zonas horarias clave.</p></details>
       <details><summary>¿Por qué son importantes los máximos y mínimos del día anterior?</summary><p>El PDH y el PDL suelen actuar como imanes de liquidez: zonas donde es probable que el precio busque operativa antes de continuar o revertir.</p></details>
       <details><summary>¿De dónde salen los datos de precio?</summary><p>De fuentes de mercado de acceso gratuito, actualizadas periódicamente. Si fallan, la web te avisa y muestra la última actualización disponible o un ejemplo ilustrativo.</p></details>
@@ -305,7 +305,7 @@
   <div class="ad-slot ad-slot--toast"><span>ANUNCIO</span></div>
 </aside>
 
-<script defer src="lib/manifest.js?v=20260820d"></script>
-<script defer src="main.js?v=20260820d"></script>
+<script defer src="lib/manifest.js?v=20260820e"></script>
+<script defer src="main.js?v=20260820e"></script>
 </body>
 </html>
