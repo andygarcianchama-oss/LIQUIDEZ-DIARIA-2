@@ -289,12 +289,28 @@
     return { bajo: centro - anchoMax / 2, alto: centro + anchoMax / 2 };
   }
 
+  // Igual que limitarAncho, pero en vez de anclar a un extremo fijo intenta
+  // mantener centrada la ventana de anchoMax alrededor de un punto de
+  // referencia (centro), sin salirse del rango original [bajo, alto]. Se usa
+  // para que, al recortar la zona de entrada, se priorice conservar la parte
+  // más "óptima" (la zona OTE de Fibonacci) en vez de recortar a ciegas desde
+  // un extremo.
+  function limitarAnchoAlrededor(bajo, alto, anchoMax, centro) {
+    if (alto <= bajo || (alto - bajo) <= anchoMax) return { bajo: bajo, alto: alto };
+    var nuevoBajo = centro - anchoMax / 2;
+    var nuevoAlto = centro + anchoMax / 2;
+    if (nuevoBajo < bajo) { nuevoBajo = bajo; nuevoAlto = Math.min(alto, nuevoBajo + anchoMax); }
+    if (nuevoAlto > alto) { nuevoAlto = alto; nuevoBajo = Math.max(bajo, nuevoAlto - anchoMax); }
+    return { bajo: nuevoBajo, alto: nuevoAlto };
+  }
+
   // Calcula entrada/OTE/SL/TP para UN Order Block concreto (misma lógica que
   // antes usaba una sola vez para la última señal, ahora reutilizable para
   // todas las zonas detectadas en todas las temporalidades).
   function calcularSetupDesdeOB(velas, instrumento, PDH, PDL, rotura, ob) {
     var buffer = instrumento.pip * 10;
-    var maxAncho = instrumento.pip * 150;
+    var maxAncho = instrumento.pip * 60;
+    var slDistancia = instrumento.pip * 100;
     var dec = instrumento.decimals;
 
     if (rotura.direccion === "alcista") {
@@ -308,12 +324,19 @@
       var fibo79 = puntoAlto - rango * 0.79;
       var entradaBajaCruda = Math.min(fibo79, ob.bajo);
       var entradaAltaCruda = Math.max(fibo618, ob.alto);
-      // Se ancla en el extremo alto (el más cercano al precio de mercado tras
-      // la ruptura) para que, al recortar, la zona siga siendo alcanzable.
-      var entradaRec = limitarAncho(entradaBajaCruda, entradaAltaCruda, maxAncho, "alta");
+      var oteBajaCruda = Math.min(fibo618, fibo79), oteAltaCruda = Math.max(fibo618, fibo79);
+      // Al recortar la zona de entrada priorizamos conservar la zona OTE
+      // (61,8–79% de Fibonacci, el tramo más "óptimo" según ICT/SMC): la
+      // ventana de anchoMax se centra en el punto medio de la OTE en vez de
+      // anclarse a ciegas en un extremo.
+      var oteCentro = (oteBajaCruda + oteAltaCruda) / 2;
+      var entradaRec = limitarAnchoAlrededor(entradaBajaCruda, entradaAltaCruda, maxAncho, oteCentro);
       var entradaBaja = entradaRec.bajo, entradaAlta = entradaRec.alto;
-      var oteRec = limitarAncho(Math.min(fibo618, fibo79), Math.max(fibo618, fibo79), maxAncho, "alta");
-      var stopLoss = Math.min(puntoBajo, ob.bajo) - buffer;
+      var oteRec = limitarAncho(oteBajaCruda, oteAltaCruda, maxAncho, "centro");
+      // El stop se coloca a una distancia fija (100 pips) de la "primera
+      // entrada del rango": en un retroceso alcista el precio llega a la zona
+      // desde arriba, así que el primer borde que toca es el alto.
+      var stopLoss = entradaAlta - slDistancia;
       var candA = (PDH != null && PDH > puntoAlto) ? PDH : puntoAlto + rango * 0.272;
       var candB = puntoAlto + rango * 0.618;
       var tp1 = Math.min(candA, candB); // TP1 = objetivo más cercano
@@ -340,12 +363,17 @@
       var fibo79b = puntoBajo2 + rango2 * 0.79;
       var entradaBajaCruda2 = Math.min(fibo618b, ob.bajo);
       var entradaAltaCruda2 = Math.max(fibo79b, ob.alto);
-      // Se ancla en el extremo bajo (el más cercano al precio de mercado tras
-      // la ruptura bajista) para que la zona recortada siga siendo alcanzable.
-      var entradaRec2 = limitarAncho(entradaBajaCruda2, entradaAltaCruda2, maxAncho, "baja");
+      var oteBajaCruda2 = Math.min(fibo618b, fibo79b), oteAltaCruda2 = Math.max(fibo618b, fibo79b);
+      // Igual que en el caso alcista: se prioriza conservar la zona OTE al
+      // recortar, centrando la ventana de anchoMax en su punto medio.
+      var oteCentro2 = (oteBajaCruda2 + oteAltaCruda2) / 2;
+      var entradaRec2 = limitarAnchoAlrededor(entradaBajaCruda2, entradaAltaCruda2, maxAncho, oteCentro2);
       var entradaBaja2 = entradaRec2.bajo, entradaAlta2 = entradaRec2.alto;
-      var oteRec2 = limitarAncho(Math.min(fibo618b, fibo79b), Math.max(fibo618b, fibo79b), maxAncho, "baja");
-      var stopLoss2 = Math.max(puntoAlto2, ob.alto) + buffer;
+      var oteRec2 = limitarAncho(oteBajaCruda2, oteAltaCruda2, maxAncho, "centro");
+      // En un retroceso bajista el precio llega a la zona desde abajo, así
+      // que el primer borde que toca es el bajo: el stop se coloca a 100
+      // pips por encima de ese borde.
+      var stopLoss2 = entradaBaja2 + slDistancia;
       var candA2 = (PDL != null && PDL < puntoBajo2) ? PDL : puntoBajo2 - rango2 * 0.272;
       var candB2 = puntoBajo2 - rango2 * 0.618;
       var tp1b = Math.max(candA2, candB2); // TP1 = objetivo más cercano (precio menos bajo)
@@ -370,7 +398,7 @@
   function analizarZonasTF(velas, instrumento, PDH, PDL, tfId, tfLabel, maxZonas) {
     maxZonas = maxZonas || 20;
     if (!velas || velas.length < 40) return [];
-    var maxAncho = instrumento.pip * 150;
+    var maxAncho = instrumento.pip * 60;
     var swings = detectarSwings(velas, 3);
     var roturas = detectarTodasRoturas(velas, swings);
     var zonas = [];
@@ -441,7 +469,7 @@
   function analizarFVGTF(velas, instrumento, tfId, tfLabel, maxZonas) {
     maxZonas = maxZonas || 20;
     if (!velas || velas.length < 10) return [];
-    var maxAncho = instrumento.pip * 150;
+    var maxAncho = instrumento.pip * 60;
     var huecos = detectarFVG(velas);
     var zonas = [];
     for (var i = huecos.length - 1; i >= 0 && zonas.length < maxZonas; i--) {

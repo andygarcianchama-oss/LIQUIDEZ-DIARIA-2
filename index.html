@@ -23,7 +23,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
 
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=20260820c">
+<link rel="stylesheet" href="styles.css?v=20260820d">
 
 <script type="application/ld+json">
 {
@@ -171,7 +171,7 @@
 
       <div class="zonas-panel">
         <h2>Zonas de liquidez (Order Blocks y FVG recientes, 15m / 1H / 4H)</h2>
-        <p class="zonas-intro">Los bloques de órdenes (Order Blocks) y los huecos de valor razonable (Fair Value Gaps, FVG) detectados en 15 minutos, 1 hora y 4 horas: zonas donde el precio podría reaccionar si vuelve a visitarlas, ya recortadas a un máximo de 150 pips para que sean prácticas. "Sin testear" es la más fresca; en un Order Block, "Breaker Block" significa que el precio ya lo atravesó del todo (puede invertir su polaridad); en un FVG, "Rellenado" significa que el precio ya cerró el hueco por completo. Una etiqueta "Confluencia" indica que varias temporalidades señalan la misma zona, o que un Order Block y un FVG coinciden en la misma zona.</p>
+        <p class="zonas-intro">Los bloques de órdenes (Order Blocks) y los huecos de valor razonable (Fair Value Gaps, FVG) detectados en 15 minutos, 1 hora y 4 horas: zonas donde el precio podría reaccionar si vuelve a visitarlas, ya recortadas a un máximo de 60 pips, priorizando conservar la zona OTE (la parte más óptima según Fibonacci), para que sean prácticas. "Sin testear" es la más fresca; en un Order Block, "Breaker Block" significa que el precio ya lo atravesó del todo (puede invertir su polaridad); en un FVG, "Rellenado" significa que el precio ya cerró el hueco por completo. Una etiqueta "Confluencia" indica que varias temporalidades señalan la misma zona, o que un Order Block y un FVG coinciden en la misma zona.</p>
         <p class="zonas-vacio" data-zonas-vacio hidden>Todavía no se han detectado zonas de liquidez claras con los datos disponibles.</p>
         <div class="zonas-liquidez-grid" data-zonas-liquidez></div>
       </div>
@@ -305,7 +305,7 @@
   <div class="ad-slot ad-slot--toast"><span>ANUNCIO</span></div>
 </aside>
 
-<script defer src="lib/manifest.js?v=20260820c"></script>
-<script defer src="main.js?v=20260820c"></script>
+<script defer src="lib/manifest.js?v=20260820d"></script>
+<script defer src="main.js?v=20260820d"></script>
 </body>
 </html>
