@@ -591,14 +591,40 @@
   // El color nunca es la única forma de distinguir algo: cada elemento
   // lleva también su etiqueta de texto y su posición en el eje de precio.
   // ---------------------------------------------------------------------
-  function construirDiagramaSetup(instrumento, z, precioActual, PDH, PDL) {
+  // Elige, dentro de las velas de la temporalidad de la zona, la ventana que
+  // se va a dibujar: desde justo antes de que se formara el Order Block
+  // hasta la vela más reciente (el precio actual), para que la zona y el
+  // recorrido del precio hasta hoy queden siempre visibles. Si por lo que
+  // sea la zona no aparece en el array (no debería pasar: viene del mismo
+  // cálculo), simplemente se muestran las últimas velas disponibles.
+  function seleccionarVelasParaDiagrama(velasTF, zonaT, maxVelas) {
+    if (!velasTF || !velasTF.length) return [];
+    var idxZona = -1;
+    for (var i = 0; i < velasTF.length; i++) {
+      if (velasTF[i].t === zonaT) { idxZona = i; break; }
+    }
+    var inicio;
+    if (idxZona === -1) {
+      inicio = Math.max(0, velasTF.length - maxVelas);
+    } else {
+      inicio = Math.max(0, Math.min(idxZona - 3, velasTF.length - maxVelas));
+    }
+    return velasTF.slice(inicio);
+  }
+
+  function construirDiagramaSetup(instrumento, z, precioActual, PDH, PDL, mapaVelas) {
     var s = z.setup;
     var dec = instrumento.decimals;
     var alcista = s.sesgo === "alcista";
     var W = 320, H = 176, ML = 74, MR = 10, MT = 10, MB = 10;
     var plotH = H - MT - MB;
+    var plotW = W - ML - MR;
+
+    var velasTF = (mapaVelas && mapaVelas[z.tf]) || [];
+    var velasVentana = seleccionarVelasParaDiagrama(velasTF, z.t, 70);
 
     var nivelesBase = [s.stopLoss, s.tp1, s.tp2, s.entradaBaja, s.entradaAlta, s.oteBaja, s.oteAlta];
+    velasVentana.forEach(function (v) { nivelesBase.push(v.h, v.l); });
     var lo = Math.min.apply(null, nivelesBase), hi = Math.max.apply(null, nivelesBase);
     var pad = Math.max((hi - lo) * 0.12, instrumento.pip * 2);
     var domLo = lo - pad, domHi = hi + pad;
@@ -613,6 +639,21 @@
 
     var partes = [];
     partes.push('<rect class="diagrama__fondo" x="0" y="0" width="' + W + '" height="' + H + '" rx="8"></rect>');
+
+    // Velas reales de fondo (precio efectivo, no un dibujo esquemático): dan
+    // contexto de cómo ha llegado el precio hasta la zona de entrada.
+    if (velasVentana.length) {
+      var anchoVela = plotW / velasVentana.length;
+      var cuerpoVela = Math.max(1, anchoVela * 0.62);
+      velasVentana.forEach(function (v, idx) {
+        var cx = ML + idx * anchoVela + anchoVela / 2;
+        var yMecha1 = y(v.h), yMecha2 = y(v.l);
+        var subeVela = v.c >= v.o;
+        var yCuerpoTop = y(Math.max(v.o, v.c)), yCuerpoBot = y(Math.min(v.o, v.c));
+        partes.push('<line class="diagrama__vela-mecha" x1="' + cx + '" y1="' + yMecha1 + '" x2="' + cx + '" y2="' + yMecha2 + '"></line>');
+        partes.push('<rect class="diagrama__vela-cuerpo diagrama__vela-cuerpo--' + (subeVela ? "alcista" : "bajista") + '" x="' + (cx - cuerpoVela / 2) + '" y="' + yCuerpoTop + '" width="' + cuerpoVela + '" height="' + Math.max(1, yCuerpoBot - yCuerpoTop) + '"></rect>');
+      });
+    }
 
     // PDH/PDL: solo si caen dentro del dominio visible (si el máximo/mínimo
     // del día anterior queda lejos, se omite para no aplastar la zona de
@@ -675,13 +716,13 @@
       }
     }
 
-    return '<svg class="setup-diagrama" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Diagrama de niveles del setup: entrada, OTE, stop y objetivos">' + partes.join("") + '</svg>';
+    return '<svg class="setup-diagrama" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Gráfico de velas del setup con los niveles de entrada, OTE, stop y objetivos">' + partes.join("") + '</svg>';
   }
 
   // Pinta TODOS los setups detectados (sin límite artificial, a petición del
   // usuario), uno por cada zona de liquidez no mitigada con un movimiento de
   // origen suficientemente grande, en cualquiera de las tres temporalidades.
-  function pintarSetups(instrumento, zonas, precioActual, PDH, PDL) {
+  function pintarSetups(instrumento, zonas, precioActual, PDH, PDL, mapaVelas) {
     var cont = $("[data-setups]");
     var vacio = $("[data-setups-vacio]");
     var contador = $("[data-setups-contador]");
@@ -700,7 +741,7 @@
       var s = z.setup;
       var fecha = new Date(z.t * 1000).toLocaleString("es-ES", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" });
       var diagrama = "";
-      safe(function () { diagrama = construirDiagramaSetup(instrumento, z, precioActual, PDH, PDL); }, "construirDiagramaSetup");
+      safe(function () { diagrama = construirDiagramaSetup(instrumento, z, precioActual, PDH, PDL, mapaVelas); }, "construirDiagramaSetup");
       var confluenciaTxt = "";
       if (z.confluyeCon && z.confluyeCon.length) {
         var lista = z.confluyeCon.map(function (c) { return escHTML(c.tf) + " " + (c.tipo === "fvg" ? "FVG" : "OB"); }).join(", ");
@@ -833,13 +874,16 @@
   // ---------------------------------------------------------------------
   // Carga de datos + render
   // ---------------------------------------------------------------------
-  function cargarInstrumento(symbol) {
+  function cargarInstrumento(symbol, forzar) {
     var instrumento = (data.instruments || []).find(function (i) { return i.symbol === symbol; });
     if (!instrumento) return;
     estadoActual.symbol = symbol;
-    mostrarEstado("cargando");
+    // En los refrescos automáticos (forzar === true) no mostramos el estado
+    // "cargando": el contenido actual se queda visible y se sustituye en
+    // cuanto llegan los datos nuevos, sin parpadeos ni skeleton.
+    if (!forzar) mostrarEstado("cargando");
 
-    if (cacheInstrumentos[symbol] && (Date.now() - cacheInstrumentos[symbol]._t) < 5 * 60 * 1000) {
+    if (!forzar && cacheInstrumentos[symbol] && (Date.now() - cacheInstrumentos[symbol]._t) < 5 * 60 * 1000) {
       pintarResultado(instrumento, cacheInstrumentos[symbol]);
       return;
     }
@@ -863,7 +907,11 @@
       })
       .catch(function (err) {
         console.warn("[cargarInstrumento] error:", err);
-        if (estadoActual.symbol === symbol) mostrarEstado("error");
+        // En un refresco automático en segundo plano, si falla dejamos el
+        // último análisis bueno tal cual en pantalla en vez de tapar la
+        // tarjeta con el estado de error: se reintentará solo en el
+        // siguiente ciclo (o en el próximo cambio de pestaña).
+        if (!forzar && estadoActual.symbol === symbol) mostrarEstado("error");
       });
   }
 
@@ -957,7 +1005,12 @@
       // quiere vigilar. Ya no se detectan ni se mezclan en las confluencias.
       var todasZonas = detectarConfluencias(zonas15.concat(zonas1h, zonas4h));
       pintarZonasLiquidez(instrumento, todasZonas);
-      pintarSetups(instrumento, todasZonas, analisis.precioActual, analisis.PDH, analisis.PDL);
+      // Mapa de velas por temporalidad, para que cada tarjeta de entrada
+      // pueda dibujar su propio mini gráfico de velas reales (en vez de un
+      // diagrama abstracto) usando exactamente las mismas velas con las que
+      // se detectó esa zona.
+      var mapaVelas = { "15m": velas15, "1h": velas1h, "4h": velas4h };
+      pintarSetups(instrumento, todasZonas, analisis.precioActual, analisis.PDH, analisis.PDL, mapaVelas);
     }, "analizarZonasTF");
 
     safe(function () {
@@ -1195,6 +1248,33 @@
     $$("[data-anio]").forEach(function (el) { el.textContent = String(data.year || new Date().getFullYear()); });
   }
 
+  // ---------------------------------------------------------------------
+  // Auto-actualización — para que el análisis y las zonas se vayan
+  // renovando solos a lo largo del día según se van formando velas nuevas,
+  // sin que el usuario tenga que recargar la página a mano.
+  // ---------------------------------------------------------------------
+  var INTERVALO_AUTOACTUALIZAR_MS = 5 * 60 * 1000; // 5 min: el servidor solo trae datos nuevos de verdad cada 15 min, pero comprobamos más a menudo para pillar el cambio pronto sin sobrecargarlo
+  var ANTIGUEDAD_MAX_AL_VOLVER_MS = 2 * 60 * 1000;
+  function initAutoRefresh() {
+    setInterval(function () {
+      if (!estadoActual.symbol) return;
+      if (document.visibilityState !== "visible") return; // no gastamos peticiones con la pestaña/app en segundo plano
+      cargarInstrumento(estadoActual.symbol, true);
+    }, INTERVALO_AUTOACTUALIZAR_MS);
+
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState !== "visible" || !estadoActual.symbol) return;
+      var cacheEntry = cacheInstrumentos[estadoActual.symbol];
+      var antiguedadMs = cacheEntry ? (Date.now() - cacheEntry._t) : Infinity;
+      // Si la pestaña (o la app instalada en el móvil) llevaba un rato en
+      // segundo plano, al volver a primer plano refrescamos ya mismo en vez
+      // de esperar al siguiente ciclo del intervalo.
+      if (antiguedadMs > ANTIGUEDAD_MAX_AL_VOLVER_MS) {
+        cargarInstrumento(estadoActual.symbol, true);
+      }
+    });
+  }
+
   function boot() {
     safe(mountPasos, "mountPasos");
     safe(mountUsos, "mountUsos");
@@ -1206,6 +1286,7 @@
     safe(initPopupCierre, "initPopupCierre");
     safe(initToastEsquina, "initToastEsquina");
     safe(initNoticias, "initNoticias");
+    safe(initAutoRefresh, "initAutoRefresh");
     document.documentElement.classList.add("is-ready");
   }
 
