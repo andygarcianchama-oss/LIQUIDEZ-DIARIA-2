@@ -235,6 +235,7 @@ export function analizarZonasTF(velas, instrumento, PDH, PDL, tfId, tfLabel, max
   maxZonas = maxZonas || 20;
   if (!velas || velas.length < 40) return [];
   var maxAncho = instrumento.pip * 60;
+  var minAnchoOB = instrumento.pip * 40; // descarta Order Blocks poco relevantes (demasiado estrechos)
   var swings = detectarSwings(velas, 3);
   var roturas = detectarTodasRoturas(velas, swings);
   var zonas = [];
@@ -242,6 +243,7 @@ export function analizarZonasTF(velas, instrumento, PDH, PDL, tfId, tfLabel, max
     var rotura = roturas[i];
     var ob = encontrarOB(velas, rotura);
     if (!ob) continue;
+    if ((ob.alto - ob.bajo) < minAnchoOB) continue;
     if (zonas.some(function (z) { return z.ob.idx === ob.idx; })) continue;
     var estado = estadoOB(velas, ob, rotura);
     var setup = null;
@@ -333,9 +335,7 @@ export function calcularTodasLasZonas(candles, instrumento) {
   var zonas15 = analizarZonasTF(velas15, instrumento, info.PDH, info.PDL, "15m", "15m", 20);
   var zonas1h = analizarZonasTF(velas1h, instrumento, info.PDH, info.PDL, "1h", "1H", 20);
   var zonas4h = analizarZonasTF(velas4h, instrumento, info.PDH, info.PDL, "4h", "4H", 20);
-  var fvg15 = analizarFVGTF(velas15, instrumento, "15m", "15m", 20);
-  var fvg1h = analizarFVGTF(velas1h, instrumento, "1h", "1H", 20);
-  var fvg4h = analizarFVGTF(velas4h, instrumento, "4h", "4H", 20);
-  var todas = detectarConfluencias(zonas15.concat(zonas1h, zonas4h, fvg15, fvg1h, fvg4h));
+  // FVG retirados del pipeline (igual que en main.js): solo Order Blocks / Breaker Blocks.
+  var todas = detectarConfluencias(zonas15.concat(zonas1h, zonas4h));
   return { zonas: todas, PDH: info.PDH, PDL: info.PDL, precioActual: info.precioActual };
 }
