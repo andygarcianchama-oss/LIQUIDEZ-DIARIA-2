@@ -325,7 +325,7 @@ const INSTRUMENTOS = {
 // navegador (ver lib/manifest.js `vapidPublicKey`) para pushManager.subscribe().
 // La clave PRIVADA correspondiente se guarda como secreto del Worker
 // (env.VAPID_PRIVATE_KEY_JWK, un JSON de tipo JWK) y nunca se expone aquí.
-const VAPID_PUBLIC_KEY = "BMEERguBY5t2hfTHsgfBNAWu8tqcnTSz3qsoC5-_J77thziY1aiWNaH11eWCrNxfTQWQP4KRH8axEiynKRoNCiI";
+const VAPID_PUBLIC_KEY = "BL6ttFQB8xxFZWLrmgte1JBXwY0jyNicZJ7g2AtJkO5ToCyKL10uFwcOzDnqo1Tpz-NgNs9X-9gzEoQjrncLxW8";
 const VAPID_SUBJECT = "mailto:andygarcianchama@gmail.com";
 const COOLDOWN_NOTIF_SEGUNDOS = 6 * 3600; // no repetir el mismo aviso (misma zona) antes de 6h
 const UMBRAL_PIPS_POR_DEFECTO = 20;
