@@ -239,6 +239,10 @@ h1, h2, h3 { text-wrap: balance; line-height: 1.15; letter-spacing: -0.01em; fon
    así que sigue siendo legible en blanco y negro o con daltonismo. */
 .setup-diagrama { width: 100%; height: auto; display: block; margin: .1rem 0; }
 .diagrama__fondo { fill: var(--bg); }
+.diagrama__vela-mecha { stroke: var(--text-muted); stroke-width: 1; opacity: .5; }
+.diagrama__vela-cuerpo { opacity: .5; }
+.diagrama__vela-cuerpo--alcista { fill: var(--up); }
+.diagrama__vela-cuerpo--bajista { fill: var(--down); }
 .diagrama__pdhpdl { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 2 3; opacity: .6; }
 .diagrama__pdhpdl-txt { fill: var(--text-muted); font-size: 8px; font-family: var(--mono); }
 .diagrama__confluencia { fill: none; stroke: #6c2bd9; stroke-width: 1.5; stroke-dasharray: 3 2; opacity: .75; }
