@@ -12,19 +12,14 @@
   // `env.PUSH_SUBS` y no hace nada si el binding no está configurado.
   "triggers": {
     "crons": ["*/5 * * * *"]
-  }
-  // PENDIENTE (requiere el dashboard de Cloudflare, no se puede hacer solo
-  // con archivos): crear un KV namespace para guardar las suscripciones
-  // push y añadir aquí su binding, algo como:
-  //   "kv_namespaces": [
-  //     { "binding": "PUSH_SUBS", "id": "<id del namespace creado en el dashboard>" }
-  //   ]
-  // y configurar el secreto VAPID_PRIVATE_KEY_JWK (Configuración → Variables
-  // y secretos) con la clave privada VAPID correspondiente a la clave
-  // pública ya incluida en src/index.js (VAPID_PUBLIC_KEY) y en
-  // lib/manifest.js (vapidPublicKey). Hasta que eso esté hecho, el panel
-  // "Avisos de precio" de la web se ve pero responde con un aviso de que
-  // el servidor aún no lo tiene configurado — el resto del sitio no se ve
-  // afectado en absoluto.
+  },
+  // KV namespace para guardar las suscripciones push (creado en el
+  // dashboard de Cloudflare el 2026-08-21). El secreto VAPID_PRIVATE_KEY_JWK
+  // correspondiente a VAPID_PUBLIC_KEY (src/index.js) / vapidPublicKey
+  // (lib/manifest.js) se configuró aparte en Configuración → Variables y
+  // secretos, ya que wrangler.jsonc no debe contener secretos.
+  "kv_namespaces": [
+    { "binding": "PUSH_SUBS", "id": "c9ff4e5cf5bf473788f1af2156ed7319" }
+  ]
 }
 
